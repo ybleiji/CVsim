@@ -132,24 +132,24 @@ class CV_sim:
         return np.array(Eapp), np.array(Time)
 
     # import electrode functions
-    from electrode import electrode, insulator, electrode_from_image
+    from .electrode import electrode, insulator, electrode_from_image
     
     # import findsurface
-    from findsurface import findsurface
+    from .findsurface import findsurface
 
     # import the CV_1D, CV_2D, CV_3D functions
-    from CV_1D import CV_1D
-    from CV_2D import CV_2D
-    from CV_3D import CV_3D
+    from .CV_1D import CV_1D
+    from .CV_2D import CV_2D
+    from .CV_3D import CV_3D
     
     # import run functions
-    from run_simulation import run_simulation as run
+    from .run_simulation import run_simulation as run
     
     # import animate functions
-    from animate import animate, animate_1D, animate_2D, animate_3D
+    from .animate import animate, animate_1D, animate_2D, animate_3D
     
     # import plot functions
-    from plot import plot, activity
+    from .plot import plot, activity
     
     
     def reset(self):
