@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import time
 import scipy.constants as const
 const.F = const.physical_constants["Faraday constant"][0]
-import GeneralFunctions as gf
+from .genfunc import Animate, Animate_2D
 
 
 
@@ -55,13 +55,13 @@ def animate_1D(self, *args, **kwargs):
     if units[1] == 'mM': c = [1e3*self.cA, 1e3*self.cB]
     elif units[1] == 'M': c = [self.cA, self.cB]
     else: raise ValueError('The second element of units needs to be mM or M only!')
-    
+         
     # check the xlim and ylim with the scaled values
     if 'xlim' not in kwargs: kwargs['xlim'] = [0, max(x[0])/4]
     if 'ylim' not in kwargs: kwargs['ylim'] = [0, 1.1*max(np.array(c).flatten())]
     if 'label' not in kwargs: kwargs['label'] = ['Distance from electrode ('+units[0]+')','Concentration ('+units[1]+')']
     
-    anim = gf.animate(x, c, **kwargs)
+    anim = Animate(x, c, **kwargs)
     return anim
 
    
@@ -134,7 +134,7 @@ def animate_2D(self, *args, **kwargs):
     if 'outline' not in kwargs: kwargs['outline'] =  self.el
     
     # animate!
-    anim = gf.animate_2D(x, c, **kwargs)
+    anim = Animate_2D(x, c, **kwargs)
     return anim # animations needs to be returned in order to be seen in ipython
 
 def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
@@ -285,5 +285,5 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
             else:kwargs['outline'] = outline
     
     # animate!
-    anim = gf.animate_2D(coord, c, **kwargs)
+    anim = Animate_2D(coord, c, **kwargs)
     return anim # animations needs to be returned in order to be seen in ipython    

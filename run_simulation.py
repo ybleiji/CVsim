@@ -4,7 +4,7 @@ Created on Wed Aug  5 14:48:55 2020
 
 @author: bleiji
 """
-import GeneralFunctions as gf
+from .genfunc import checkkeys
 
 
 def run_simulation(self, Dm=0.49, MaxIter=1e5, feedback=True, fb=None, fbN=None, gridtype=None, *args,**kwargs):
@@ -59,7 +59,7 @@ def run_simulation(self, Dm=0.49, MaxIter=1e5, feedback=True, fb=None, fbN=None,
         # check the arguments
         allowedkeys = {'E_steps':None,'x_steps':None,'Lx':None,
                        'gridtype':None,'fbN':None}
-        gf.checkkeys('CV_1D', kwargs, allowedkeys)
+        checkkeys('CV_1D', kwargs, allowedkeys)
         
         # set gridtype
         if gridtype is None: self.gridtype = 'nonlinear'
@@ -75,7 +75,7 @@ def run_simulation(self, Dm=0.49, MaxIter=1e5, feedback=True, fb=None, fbN=None,
         # check the arguments
         allowedkeys = {'E_steps':None,'x_steps':None,'Lx':None,
                        'y_steps':None,'Ly':None,'gridtype':None,'fbN':None}
-        gf.checkkeys('CV_2D', kwargs, allowedkeys)
+        checkkeys('CV_2D', kwargs, allowedkeys)
         
         # set gridtype
         if gridtype is None: self.gridtype = 'linear'

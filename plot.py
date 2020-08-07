@@ -7,7 +7,7 @@ Created on Wed Aug  5 14:42:57 2020
 
 import numpy as np
 import matplotlib.pyplot as plt
-import GeneralFunctions as gf
+from .genfunc import checkkeys, fancyplot, find_nearest
 
 
 def plot(self, Type='CV', *args, **kwargs):
@@ -82,51 +82,51 @@ def plot(self, Type='CV', *args, **kwargs):
                    'origin':None,'style':None,'loc':None,'color':None,
                    'xscale':None,'yscale':None,'units':None,'returnfig':None,
                    'showfig':None }
-    gf.checkkeys('plot()', kwargs, allowedkeys)
+    checkkeys('plot()', kwargs, allowedkeys)
 
     if Type == 'CV':
         plotoptions['label'] = ['Potential (V)', 'Current density '+units]
         if self.dim == '1D': 
-            fig = gf.fancyplot(self.Eapp, curdens, **plotoptions)
+            fig = fancyplot(self.Eapp, curdens, **plotoptions)
         elif self.dim == '2D' or self.dim=='3D':
             plotoptions['title'] = 'Average current density'
-            fig = gf.fancyplot(self.Eapp, curdens[:,-1], **plotoptions)
+            fig = fancyplot(self.Eapp, curdens[:,-1], **plotoptions)
             
             
     elif Type == 'tE':
         plotoptions['label'] = ['Time (s)', 'Potential (V)']
-        fig = gf.fancyplot(self.time, self.Eapp, **plotoptions)
+        fig = fancyplot(self.time, self.Eapp, **plotoptions)
         
         
     elif Type == 'tI':
         plotoptions['label'] = ['Time (s)', 'Current density '+units]
         if self.dim == '1D': 
-            fig = gf.fancyplot(self.time, curdens, **plotoptions)
+            fig = fancyplot(self.time, curdens, **plotoptions)
         elif self.dim == '2D' or self.dim=='3D':
             plotoptions['title'] = 'Average current density'
-            fig = gf.fancyplot(self.time, curdens[:,-1], **plotoptions)
+            fig = fancyplot(self.time, curdens[:,-1], **plotoptions)
             
             
     elif Type == 'tcA':
         try: plotoptions['title'] # check if title is specified
         except KeyError: plotoptions['title'] = 'Surface concentration vs time'
         if self.dim == '1D':
-            fig = gf.fancyplot(self.time, cA[:,0], **plotoptions)
+            fig = fancyplot(self.time, cA[:,0], **plotoptions)
         elif self.dim == '2D':
             
             # update this!
-            fig = gf.fancyplot(self.time, cA[:,50,0], **plotoptions)
+            fig = fancyplot(self.time, cA[:,50,0], **plotoptions)
             
             
     elif Type == 'tcB':
         try: plotoptions['title'] # check if title is specified
         except KeyError: plotoptions['title'] = 'Surface concentration vs time'
         if self.dim == '1D':
-            fig = gf.fancyplot(self.time, cB[:,0], **plotoptions)
+            fig = fancyplot(self.time, cB[:,0], **plotoptions)
         elif self.dim == '2D':
             
             # update this!
-            fig = gf.fancyplot(self.time, cB[:,50,0], **plotoptions)
+            fig = fancyplot(self.time, cB[:,50,0], **plotoptions)
             
             
     elif Type == 'tc':
@@ -135,11 +135,11 @@ def plot(self, Type='CV', *args, **kwargs):
         try: plotoptions['title'] # check if title is specified
         except KeyError: plotoptions['title'] = 'Surface concentration vs time'
         if self.dim == '1D':
-            fig = gf.fancyplot([[self.time, cA[:,0]],[self.time, cB[:,0]]], **plotoptions)
+            fig = fancyplot([[self.time, cA[:,0]],[self.time, cB[:,0]]], **plotoptions)
         elif self.dim == '2D':
             
             # update this!
-            fig = gf.fancyplot([[self.time, cA[:,50,0]],[self.time, cB[:,50,0]]], **plotoptions)
+            fig = fancyplot([[self.time, cA[:,50,0]],[self.time, cB[:,50,0]]], **plotoptions)
             
         elif self.dim == '3D':
             raise NotImplementedError('3D plot not implemented yet!')
@@ -162,9 +162,9 @@ def activity(self, tstart=None, tend=None, units=['um','C/cm2'], showhis=False,
     if self.dim != '2D': raise ValueError('This function is only available for 2D!')
     
     if tstart is None: tstart = 0
-    else: tstart = gf.find_nearest(self.time, tstart)
+    else: tstart = find_nearest(self.time, tstart)
     if tend is None: tend = self.Eapp.argmin()
-    else: tend = gf.find_nearest(self.time, tend)
+    else: tend = find_nearest(self.time, tend)
         
     # integrate the current density to time: charge density = int curdens dt 
     t = self.time[tstart:tend]
@@ -223,7 +223,7 @@ def activity(self, tstart=None, tend=None, units=['um','C/cm2'], showhis=False,
     maxbar = kwargs.get('maxbar', round(max(chargedens.flatten())))
     
     # plot the pcolormesh
-    fig, ax = gf.fancyplot(**kwargs, returnfig = True)
+    fig, ax = fancyplot(**kwargs, returnfig = True)
     colorplot = plt.pcolormesh(X,Y, chargedensgrid, cmap = 'inferno', vmax=minbar, vmin=maxbar) 
     bar = fig.colorbar(colorplot)
     bar.set_label(label=barlabel) #add a label to the colorbar
@@ -233,7 +233,7 @@ def activity(self, tstart=None, tend=None, units=['um','C/cm2'], showhis=False,
     
     # plot the histogram if showhis
     if showhis:
-        # fig, ax = gf.fancyplot([],[])
+        # fig, ax = fancyplot([],[])
         plt.hist(chargedens, bins='auto')
         # plt.title("Histogram with 'auto' bins")
         plt.title('Parameters: D={} cm$^2$/s, k$_0$={} cm/s, $\\nu$= {} mV/s'.format(self.D, self.k0, 1000*self.scanrate))
