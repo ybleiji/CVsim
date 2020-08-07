@@ -142,17 +142,14 @@ def CV_2D(self, *args, **kwargs):
         blockpres = False # blocking layer is not present
     
     # use findsurface to find the elements and directions of the surface
-    el_surf, elec, empty, normal, el_surf0, elec0, normal0 = self.findsurface(electrode)
-    # el_surf, elec, empty, normal = self.findsurface(electrode)
+    el_surf, elec, empty, normal = self.findsurface(electrode)
     self.el, self.el_surf = elec, el_surf
     # el_surf is a list containing the positions of the surface of the electrode (x=dx)
     # elec is a list containing the positions of the electrode (x=0)
     
     # allow the ions to difusse into the surface of the elec/blocking layer (needed for BC)
-    # electrolyte[tuple(elec0)] = 1
     for el in elec:
         electrolyte[tuple(el)] = 1
-    # if blockpres: electrolyte[tuple(blocked0)] = 1
     if blockpres: 
         for el in blocked:
             electrolyte[tuple(el)] = 1
