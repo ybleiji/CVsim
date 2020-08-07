@@ -71,45 +71,12 @@ def findsurface(self, electrode, retsurf=False):
         
         # find the normal to the surface
         normalvec = np.delete(np.array([[[1,0]],[[1,0]],[[0,1]],[[0,1]]]), empty, axis=0)
-        
-        normalvec = np.delete(np.array([[[1,0]],[[-1,0]],[[0,1]],[[0,-1]]]), empty, axis=0)
-        
         cornerel, normal = np.array([[],[]]), []
         for i, el in enumerate(elec): # search within elec for corner elem
             cornerel = np.concatenate((cornerel, el), axis=1)
             normal.append(el*0.0+normalvec[i].T)
         uniq, count = np.unique(cornerel.T, return_counts=True, axis=0)
         cornerel = uniq[count > 1].T.astype(np.int) # here the positions of the corner elements in the 2D matrix are being saved 
-         
-        
-        
-        
-        
-        #### make one array of elec, el_surf and normal instead of all the different directions
-        
-        # merge the el_surf, elec and normal to one 1D ndarray
-        el_surf0, elec0, normal0 = el_surf[0], elec[0], normal[0]
-        for i in np.arange(1,len(elec)):
-            elec0 = np.concatenate((elec0, elec[i]), axis=1)
-            el_surf0 = np.concatenate((el_surf0, el_surf[i]), axis=1)
-            normal0 = np.concatenate((normal0, normal[i]), axis=1)    
-            
-        # sort the elec, el_surf and norm array
-        elec0, el_surf0, normal0 = elec0.T, el_surf0.T, normal0.T
-        for i in [1,0]:
-            sortel = elec0[:,i].argsort(kind='mergesort')
-            elec0, el_surf0, normal0 = elec0[sortel], el_surf0[sortel], normal0[sortel]
-        
-        # since the array is sorted, it finds the duplicates by looking to the previous element
-        prevel, prevnorm = 0, 0
-        # delidx = []
-        for idx, (el, norm) in enumerate(zip(elec0,normal0)):
-            if all(prevel == el): normal0[idx-1] = normal0[idx] = norm + prevnorm # add the two vectors
-            prevel, prevnorm = el, norm
-        # elec0, normal0 = np.delete(elec0,delidx,0), np.delete(normal0,delidx,0) # remove the duplicates
-        # print(elec0)
-        # print(normal0)
-        elec0, el_surf0, normal0 = elec0.T, el_surf0.T, normal0.T
         
         if retsurf:
             electrode_surf = electrode.copy()
@@ -120,7 +87,7 @@ def findsurface(self, electrode, retsurf=False):
             return el_surf, elec, empty, normal, electrode_surf
         
         else:
-            return el_surf, elec, empty, normal, el_surf0, elec0, normal0
+            return el_surf, elec, empty, normal
      
         
      
