@@ -60,6 +60,10 @@ def CV_2D(self, *args, **kwargs):
     
     --------------------------------------------------------------------------
     REMARKS:   
+    The zeroth entry are the y positions and the first elements are the x 
+    positions. Such that if one makes a 2D plot the y directions is along the
+    vertical axis and the x direction is along the horizontal axis.
+        
     In order to have a stable calculation, the maximum value of the diffusion
     model coefficient is:
         Dmx + Dmy < 0.5, Dmi = D dt/(di)^2
@@ -72,9 +76,11 @@ def CV_2D(self, *args, **kwargs):
     
     If one wants to use different diffusion constants, a problem can occur.
     If D1 >> D2 or visa versa, the large D requires a large simulation length.
-    Keeping the amount of x_steps constant for both D, than the dx will be way
+    When keeping the amount of x_steps constant for both D, the dx will be way
     too large for the species with the small D. Therefore, the dx is assigned
-    to the species individually.
+    to the species individually. When a non flate electrode is used, a single
+    value of dx and dy will be choosen such that the electrode is at the same
+    spatial positions for both species.
     '''
     # initialize parameters
     E0, E1, E2, Ef = self.E0, self.E1, self.E2, self.Ef # all in V
@@ -126,36 +132,28 @@ def CV_2D(self, *args, **kwargs):
         electrode[:,0] = 1
         self.elec = electrode
 
-
     #check if a blocking layer is present
-    if 'block' in dir(self):
-        # use findsurface to find the elements and directions of the surface of the blocking layer
-        block_surf, blocked, empty, normal, block_surf0, blocked0, normal0 = self.findsurface(self.block)
-        self.block_surf, self.blocked = block_surf, blocked
-        elec_block = electrode+2*self.block
+    if 'block' in dir(self): # use findsurface to find the elements and directions of the surface of the blocking layer
+        blocked, normal_block  = self.findsurface(self.block)
+        blocked_surf = blocked + normal_block
+        self.blocked = blocked
+        elec_block = electrode + 2 * self.block
         electrode = np.where(elec_block==1,1,0) # remove part of electrode that is blocked
         electrolyte = np.where(np.logical_or(electrode,self.block)==0,1,0)
-        blockpres, lenblock = True, len(blocked) # blocking layer is present, set the length
-    else:
-        # where is the electrolyte and check if list elec is not empty
+        blockpres = True # blocking layer is present
+    else: # where is the electrolyte and check if list elec0 is not empty
         electrolyte = np.where(electrode==0,1,0)
         blockpres = False # blocking layer is not present
     
     # use findsurface to find the elements and directions of the surface
-    el_surf, elec, empty, normal, el_surf0, elec0, normal0 = self.findsurface(electrode)
-    # el_surf, elec, empty, normal = self.findsurface(electrode)
-    self.el, self.el_surf = elec, el_surf
-    # el_surf is a list containing the positions of the surface of the electrode (x=dx)
-    # elec is a list containing the positions of the electrode (x=0)
+    elec, normal = self.findsurface(electrode)
+    self.el, self.normal = elec, normal
+    # elec is an 2xN array containing all unique surface elements
+    # normal is an 2xN array containing all the normal vectors to the surface 
     
-    # allow the ions to difusse into the surface of the elec/blocking layer (needed for BC)
-    # electrolyte[tuple(elec0)] = 1
-    for el in elec:
-        electrolyte[tuple(el)] = 1
-    # if blockpres: electrolyte[tuple(blocked0)] = 1
-    if blockpres: 
-        for el in blocked:
-            electrolyte[tuple(el)] = 1
+    # allow the ions to difusse into the surface of the elec0/blocking layer (needed for BC)
+    electrolyte[tuple(elec)] = 1
+    if blockpres: electrolyte[tuple(blocked)] = 1
             
     # create the mesh and _profiles
     meshA = np.meshgrid(xvalA,yvalA)
@@ -167,54 +165,31 @@ def CV_2D(self, *args, **kwargs):
     beta = 1-alpha # alpha + beta = 1
     
     #initize some parameters for the diffusion
-    dx, dy = [abs(el[:,1]-el[:,0]) for el in [xval, yval]] # in cm
+    dx, dy = [abs(el[:,1]-el[:,0]) for el in [xval, yval]] # in cm: dx[0] species A, dx[1] species B
     dt = min(self.Dm/D * (dx*dy)**2/(dx**2+dy**2)) # in s (select the smallest of the two)
     Dm_x, Dm_y = [np.reshape(D*dt/el**2, (2,1,1)) for el in [dx,dy]]
-    diff = np.delete([dx,dx,dy,dy],empty, axis=0) # list with differences corresponding to non empty elements
-    dD = [(el/D*np.array([1,-1])).reshape((2,1)) for el in diff] # speeds up the simulation, [1,-1] is for positive and negative flux
     self.dt = dt
+
+    # find the surface elements by displacing the electrode element with the normal vector
+    el_surfx = np.array([elec[0], elec[1] + normal[1]]) 
+    el_surfy = np.array([elec[0] + normal[0], elec[1]])  
     
+    # normalize the normal vector
+    norm_dx_dy = normal * np.array([[dy[0]],[dx[0]]])
+    normal = abs(norm_dx_dy/(np.sqrt(norm_dx_dy[0]**2 + norm_dx_dy[1]**2)))
     
+    # some constants to speed up the simulation
+    # normal[1] = nx, normal[0] = ny
+    dx, dy  = dx.reshape((2,1)), dy.reshape((2,1))
+    denom = normal[1] * dy + normal[0] * dx
+    A, B = normal[1] * dy / denom, normal[0] * dx / denom
+    C = dx * dy / (D.reshape((2,1)) * denom)
     
-    
-    
-    
-    # normalize the normal vector using the dx and dy values
-    x_or_y_dir = np.delete(np.array([0,0,1,1]), empty) # zeroth entry is x, first entry is y
-    for idx, el in enumerate(normal):
-        temp = abs(el) * np.array([[dx[0]],[dy[0]]])
-        normal[idx] = (temp/(np.sqrt(temp[0]**2 + temp[1]**2)))[x_or_y_dir[idx]]
-        
-    # temp = normal0 * np.array([[dx[0]],[dy[0]]])
-    # normal0 = (temp/(np.sqrt(temp[0]**2 + temp[1]**2)))
-    
-    
-    
-    # return
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    # create time and Eapp array using dt
     dEmax = dt*scanrate # max dE in V
     Npoints = int(( max(E0,E1,E2,Ef)-min(E0,E1,E2,Ef) )/ dEmax + 0.5 ) # round up
     Eapp_r,time_r = self.E_app(E0,E1,E2,scanrate,Ef,ncycles,Npoints) 
     dt  = abs(time_r[1]-time_r[0]) # new dt in s, which is smaller the the old dt
 
-    #warn if the length of time is large!
-    if len(time_r) > 50000:
-        print('The simulation might take a while since {} itterations are required!'.format(len(time_r)))
-    if len(time_r) > self.MaxIter:
-        raise RecursionError('The simulation needs more than {} iterations! The simulation is terminated!'.format(self.MaxIter))
-    
     # create Eapp and time array for the output
     E_step = round(Npoints/E_steps)
     E_step = E_step if E_step > 0 else 1
@@ -227,18 +202,22 @@ def CV_2D(self, *args, **kwargs):
     # assume Ef0 stays constant
     k_c = self.ECrateconst(Eapp_r,Ef0,k0[0],T_C,alpha)
     k_a = self.ECrateconst(Eapp_r,Ef0,k0[1],T_C,-beta)
-    k = np.array([k_c,k_a]) # in cm/s, c: reduction and a: oxidation
     
     # make dictionary to speed up the simulation 
     c_cache = {}
-    c_cache[0] = c_profile
-    c_prev = c_profile
+    c_cache[0], c_prev = c_profile, c_profile
     
     try: fbN = self.fbN
     except AttributeError: fbN = int(round(len(time_r)/11))
     infobool = False
+    # check if N0 of iter < MaxIter
+    if len(time_r) > self.MaxIter:
+        raise RecursionError('The simulation needs more than {} iterations! The simulation is terminated!'.format(self.MaxIter))
+    # give some feedback    
     if self.feedback: 
-        print('Amount of iterations required: {}\n'.format(len(time_r)))
+        #warn if the length of time is large!
+        if len(time_r) > 50000: print('The simulation might take a while since {} itterations are required!'.format(len(time_r)))
+        else: print('Amount of iterations required: {}\n'.format(len(time_r)))
         if len(time_r) >  fbN:
             infobool = True
             print('################################################')
@@ -247,16 +226,16 @@ def CV_2D(self, *args, **kwargs):
     
     infosec = '# {:>6}| {:>7}| {:>10.4} sec| {:>8.5} sec #'
     infomin = '# {:>6}| {:>7}| {:>10.4} min| {:>8.5} sec #'
-    counter_t = 1
-    t0 = time.perf_counter()
     
     # start time of the sim
+    counter_t, t0 = 1, time.perf_counter()
     for idx,t in enumerate(time_r[1:],1):
         if idx % fbN == 0 and infobool: # some feedback
             if idx == fbN: t1 = time.perf_counter()
             tleft = (len(time_r)-idx)*(t1-t0)/fbN
             if tleft > 120: print(infomin.format(idx,len(time_r)-idx, (len(time_r)-idx)*(t1-t0)/fbN/60, time.perf_counter()-t0))
             else: print(infosec.format(idx,len(time_r)-idx, (len(time_r)-idx)*(t1-t0)/fbN, time.perf_counter()-t0))
+        # diffusion part
         cnewx = Dm_x*( np.roll(c_prev,-1, axis=2) - 2*c_prev + np.roll(c_prev,1,axis=2) )
         cnewy = Dm_y*( np.roll(c_prev,-1, axis=1) - 2*c_prev + np.roll(c_prev,1,axis=1) )
         c_new = (c_prev + cnewx + cnewy) * electrolyte # non zero concentrations where electrolyte = 1
@@ -264,83 +243,44 @@ def CV_2D(self, *args, **kwargs):
         c_new[:,[0,-1]], c_new[:,:,[0,-1]] = c_new[:,[1,-2]], c_new[:,:,[1,-2]]
         #set the corners, no flux through the corners
         c_new[:,[0,-1,0,-1],[0,-1,-1,0]] = c_new[:,[1,-2,1,-2],[1,-2,-2,1]] 
-        if blockpres:
-            for idx2 in range(lenblock):  # no flux through the wall of the blocking layer
-                c_new[:,blocked[idx2][0],blocked[idx2][1]] = c_new[:,block_surf[idx2][0],block_surf[idx2][1]]
-        
-        
-        
-        # rewrite this to one array instead of list with 4 arrays
-        
-        
-        
-        for idx2,el in enumerate(el_surf):
-            flux = (k_a[idx]*c_new[1,el[0],el[1]] - k_c[idx]*c_new[0,el[0],el[1]])/(1 + np.dot(diff[idx2]/D,k[:,idx]) ) # in mol/cm^s/s
-            bc = c_new[:,el[0],el[1]] + dD[idx2] * flux * normal[idx2] # normalized new value at the surface in mol/cm^3 
-            c_new[:,elec[idx2][0],elec[idx2][1]] = np.where(bc>0, bc, 0) # along y (x=0), prevents that c drops below 0
-       
-        
-       
+        if blockpres: c_new[:,blocked[0],blocked[1]] = c_new[:,blocked_surf[0],blocked_surf[1]]
+        # electrochemical part
+        flux_a = k_a[idx] * (A * c_new[1, el_surfx[0], el_surfx[1]] + B * c_new[1, el_surfy[0], el_surfy[1]]) # calculate the flux for the anodic reaction
+        flux_c = k_c[idx] * (A * c_new[0, el_surfx[0], el_surfx[1]] + B * c_new[0, el_surfy[0], el_surfy[1]]) # calculate the flux for the cathodic reaction
+        flux = (flux_a - flux_c)/(1 + C * (k_a[idx] + k_c[idx])) * np.array([[1],[-1]]) # change the sign the the order species: Jox = - Jred
+        bc = A * c_new[:,el_surfx[0], el_surfx[1]] + B * c_new[:,el_surfy[0], el_surfy[1]] + flux * C
+        c_new[:,elec[0],elec[1]] = np.where(bc > 0, bc, 0) # prevents that c drops below 0
         c_prev = c_new # overwrite previous value with new value
         if t == Time[counter_t]: # check if the output timestamp is reached, if yes store value
             c_cache[counter_t] = c_new
             counter_t += 1  
     #end of the sim 
-            
-    c_new = np.array(list(c_cache.values())) # extract the values from the directory
     
-    flux = np.ones((len(Time),1))
-    # current is determined by the flux of species A at the surface!
-    for idx,el in enumerate(el_surf):
-        first, last = np.where(el[0]==0)[0], np.where(el[0]==y_steps-1)[0]
-        el_surf[idx] = np.delete(el_surf[idx], np.append(first,last), axis=1)
-        elec[idx] = np.delete(elec[idx], np.append(first,last), axis=1)
-        newflux = - D[0]/diff[idx][0] *( c_new[:,0,el_surf[idx][0],el_surf[idx][1]] - c_new[:,0,elec[idx][0],elec[idx][1]] )
-        flux = np.append(flux, newflux, axis = 1)
-    flux = np.delete(flux, 0, axis=1) # remove the first colum, since we needed it for the correct shape
-    curdens = const.F * flux *1e3 # to mA/cm^2
+    # extract the values from the directory
+    c_new = np.array(list(c_cache.values())) 
     
+    # find the flux normal to the surface
+    flux_x = normal[1]/dx[0] * (c_new[:,0,el_surfx[0],el_surfx[1]] - c_new[:,0,elec[0],elec[1]])
+    flux_y = normal[0]/dy[0] * (c_new[:,0,el_surfy[0],el_surfy[1]] - c_new[:,0,elec[0],elec[1]])
+    flux = - D[0] * (flux_x + flux_y)
+    curdens = const.F * flux * 1e3 # to mA/cm^2
     
-    
-    
-    
-    
-    
-    # repeat for the x direction!!
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    # convert normalized vector back to [1,1] for corner elements
+    normal[tuple(np.where((normal > 0 ) & (normal < 1 )))] = 1
     
     # integrate the current density to obtain the line current density
-    L_elec, diff = np.array([]), np.delete([dy,dy,dx,dx],empty, axis=0)[:,0] # list with the lengths of the surface of the elements (so posxpos has a surface length of dy)
-    for idx,el in enumerate(elec): L_elec = np.append(L_elec, np.ones(len(el[0]))*diff[idx] )
+    L_elec = normal * np.array([dy[0],dx[0]]).reshape((2,1))
+    L_elec = np.sqrt(L_elec[0]**2+L_elec[1]**2)
     
     # devide the total line current by the total circumference of the electrode
     ave_curdens = np.sum(curdens*L_elec, axis=1) / np.sum(L_elec) # in mA/cm^2
     curdens = np.append(curdens, ave_curdens.reshape((len(curdens),1)), axis=1) # last element of curdens will be the average
+    
+    # remove the elements which are at the edge of the simulation area
+    # border : [0] = {0,ysteps-1}, [1] = {0,xsteps-1}
+    edge_y, edge_x = np.where((elec[1] == 0) | (elec[1] == x_steps-1)), np.where((elec[0] == 0) | (elec[0] == y_steps-1))
+    edge = np.concatenate((edge_x[0], edge_y[0]))
+    curdens = np.delete(curdens,edge,axis=1)
          
     if self.feedback: 
         tot_t = time.perf_counter() - t0
@@ -366,8 +306,7 @@ def CV_2D(self, *args, **kwargs):
         # k_a = ECrateconst(Eapp_r[idx-1], Ef0n, k0[1], T_C, -beta)
         # flux = (k_a*c_new[1,1] - k_c*c_new[0,1])/(1 + dx[1]/D[1]*k_a + dx[0]/D[0]*k_c ) # in mol/cm^s/s
     
-    self.time = Time
-    self.Eapp = Eapp
-    self.curdens = curdens
+    self.time, self.Eapp, self.curdens = Time, Eapp, curdens
     self.meshA, self.meshB = meshA, meshB
     self.cA, self.cB = c_new[:,0]*1e3, c_new[:,1]*1e3
+    

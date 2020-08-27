@@ -97,10 +97,10 @@ def run_simulation(self, Dm=0.49, MaxIter=1e5, feedback=True, fb=None, fbN=None,
         # set the x, y and z steps
         if'x_steps' not in dir(self):
             if self.gridtype == 'linear':
-                self.x_steps = kwargs.get('x_steps', 10) # default amount of x steps is 10
+                self.x_steps = kwargs.get('x_steps', 300) # default amount of x steps is 300
             else: raise NotImplementedError('Nonlinear grid not yet implemented')
         if 'y_steps' not in dir(self):
-            self.y_steps = kwargs.get('y_steps', 300) # default amount of y steps is 300
+            self.y_steps = kwargs.get('y_steps', 10) # default amount of y steps is 10
         if 'z_steps' not in dir(self):
             self.z_steps = kwargs.get('z_steps', 10) # default amount of z steps is 10
         

@@ -56,7 +56,7 @@ def electrode(self, dim, electrode=None, gridtype='linear', extx=False,
             
     elif dim == '3D':
         if electrode is None:
-            self.elec = None # xz-plane will be the electrode
+            self.elec = None # yz-plane will be the electrode
         elif electrode.shape > (0,0,0):
             self.elec = electrode
             # use the amount of steps determined by the electrode
@@ -122,7 +122,7 @@ def insulator(self, dim, block, show=False, *args, **kwargs):
     
 def electrode_from_image(self, imagepath, show=False, *args, **kwargs):
     '''
-    This functions generates an electrode from an image.
+    This functions generates an electrode from an 2D image.
     Input: 
         imagepath: path to image (string)
         show: show the image when true (default false)

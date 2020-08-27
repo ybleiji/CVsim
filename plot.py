@@ -41,8 +41,8 @@ def plot(self, Type='CV', *args, **kwargs):
     retfig = kwargs.get('returnfig', False)
     
     if not self.runned: raise Warning('Run the simulation first using .run()!')
-    if Type not in ['CV', 'tE', 'tI', 'tcA', 'tcB', 'tc']:
-        raise ValueError('Type should be one of the following: \'CV\', \'tE\', \'tI\', \'tcA\', \'tcB\' or \'tc\'!')
+    if Type not in ['CV', 'CV all', 'tE', 'tI', 'tcA', 'tcB', 'tc', 'te', 'ti', 'tca', 'tcb']:
+        raise ValueError('Type should be one of the following: \'CV\', \'CV all\', \'tE\', \'tI\', \'tcA\', \'tcB\' or \'tc\'!')
     
     # copy the kwargs and remove the keys that are not used in the plot
     plotoptions = kwargs.copy()
@@ -50,7 +50,7 @@ def plot(self, Type='CV', *args, **kwargs):
     except KeyError: pass
 
     # check the units
-    if Type == 'CV' or Type == 'tI':
+    if Type == 'CV' or Type == 'CV all' or Type == 'tI' or Type == 'ti':
         units = kwargs.get('units', 'mA/cm2')
         if units == 'mA/cm2':
             units = '(mA/cm$^2$)'
@@ -63,7 +63,7 @@ def plot(self, Type='CV', *args, **kwargs):
             curdens = 10*self.curdens
         else:
             raise ValueError('The units should be \'mA/cm2\', \'mA/m2\' or \'A/m2\'!')
-    elif Type == 'tcA' or Type == 'tcB' or Type == 'tc':
+    elif Type == 'tcA' or Type == 'tcB' or Type == 'tca' or Type == 'tcb' or Type == 'tc':
         units = kwargs.get('units', 'mM')
         if units == 'mM':
             cA = 1e3*self.cA
@@ -85,20 +85,39 @@ def plot(self, Type='CV', *args, **kwargs):
     checkkeys('plot()', kwargs, allowedkeys)
 
     if Type == 'CV':
+        # this is for ploting the current versus the potential
+        # only the average current density will be shown, this is the closest the the experiment
         plotoptions['label'] = ['Potential (V)', 'Current density '+units]
         if self.dim == '1D': 
             fig = fancyplot(self.Eapp, curdens, **plotoptions)
         elif self.dim == '2D' or self.dim=='3D':
             plotoptions['title'] = 'Average current density'
+            plotoptions['color'] = 'r' 
             fig = fancyplot(self.Eapp, curdens[:,-1], **plotoptions)
             
+    if Type == 'CV all':
+        # plotting all CV's of all elements together with its averaged value
+        plotoptions['label'] = ['Potential (V)', 'Current density '+units]
+        if self.dim == '1D': 
+            fig = fancyplot(self.Eapp, curdens, **plotoptions)
+        elif self.dim == '2D' or self.dim=='3D':
+            plotoptions['title'] = 'Average current density'
+            plotoptions['color'] = 'r'
+            plotoptions['showfig'] = False
+            fig = fancyplot(**plotoptions)
+            plt.plot(self.Eapp, curdens[:,:-1], 'gray')
+            plt.plot(self.Eapp, curdens[:,-1], 'r')
+            plt.show()
             
-    elif Type == 'tE':
+            
+    elif Type == 'tE' or Type == 'te':
+        # plot the time vs potential
         plotoptions['label'] = ['Time (s)', 'Potential (V)']
         fig = fancyplot(self.time, self.Eapp, **plotoptions)
         
         
-    elif Type == 'tI':
+    elif Type == 'tI' or Type == 'ti':
+        # plot the average current density vs time
         plotoptions['label'] = ['Time (s)', 'Current density '+units]
         if self.dim == '1D': 
             fig = fancyplot(self.time, curdens, **plotoptions)
@@ -107,7 +126,8 @@ def plot(self, Type='CV', *args, **kwargs):
             fig = fancyplot(self.time, curdens[:,-1], **plotoptions)
             
             
-    elif Type == 'tcA':
+    elif Type == 'tcA' or Type == 'tca':
+        # plot the concentration of A vs "the distance from the electrode"
         try: plotoptions['title'] # check if title is specified
         except KeyError: plotoptions['title'] = 'Surface concentration vs time'
         if self.dim == '1D':
@@ -116,9 +136,12 @@ def plot(self, Type='CV', *args, **kwargs):
             
             # update this!
             fig = fancyplot(self.time, cA[:,50,0], **plotoptions)
+
+        elif self.dim == '3D':
+            raise NotImplementedError('3D plot not implemented yet!')            
             
-            
-    elif Type == 'tcB':
+    elif Type == 'tcB' or Type == 'tcb':
+        # plot the concentration of B vs "the distance from the electrode"
         try: plotoptions['title'] # check if title is specified
         except KeyError: plotoptions['title'] = 'Surface concentration vs time'
         if self.dim == '1D':
@@ -127,9 +150,12 @@ def plot(self, Type='CV', *args, **kwargs):
             
             # update this!
             fig = fancyplot(self.time, cB[:,50,0], **plotoptions)
-            
+        
+        elif self.dim == '3D':
+            raise NotImplementedError('3D plot not implemented yet!')     
             
     elif Type == 'tc':
+        # plot both the concentrations of A and B vs the "distance from the electrode"
         try: plotoptions['legend'] # check if legend is specified
         except KeyError: plotoptions['legend'] = ['A','B']
         try: plotoptions['title'] # check if title is specified
@@ -159,7 +185,7 @@ def activity(self, tstart=None, tend=None, units=['um','C/cm2'], showhis=False,
         units: specify the units of the labels
     
     '''
-    if self.dim != '2D': raise ValueError('This function is only available for 2D!')
+    if self.dim != '2D': raise NotImplementedError('This function is only available for 2D!')
     
     if tstart is None: tstart = 0
     else: tstart = find_nearest(self.time, tstart)
@@ -171,11 +197,17 @@ def activity(self, tstart=None, tend=None, units=['um','C/cm2'], showhis=False,
     curdens = self.curdens[tstart:tend,:-1]
     chargedens = abs(np.trapz(curdens, t, axis=0))
 
-    # set the charge transfer grid
+    # set the charge transfer grid, use the size of the electrode
     chargedensgrid = self.elec*0
-    elements = np.array([[],[]])
-    for el in self.el: elements = np.append(elements, el,axis=1)
-    chargedensgrid[tuple(elements.astype(int))] = chargedens
+
+    # remove the corner elements from elec
+    elec = self.el
+    edge_y, edge_x = np.where((elec[0] == 0) | (elec[0] == self.y_steps-1)), np.where((elec[1] == 0) | (elec[1] == self.x_steps-1))
+    edge = np.concatenate((edge_x[0], edge_y[0]))
+    elec = np.delete(elec,edge,axis=1)
+
+    # set the values of the grid
+    chargedensgrid[tuple(elec)] = chargedens
     
     f =[]
     # check which spatial units to use

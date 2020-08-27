@@ -6,8 +6,6 @@ Created on Wed Aug  5 11:21:20 2020
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-import time
 import scipy.constants as const
 const.F = const.physical_constants["Faraday constant"][0]
 from .genfunc import Animate, Animate_2D
@@ -88,15 +86,31 @@ def animate_2D(self, *args, **kwargs):
     species = kwargs.get('species', 'A') # select which specices to animate
     if 'species' in kwargs: del kwargs['species']
     if 'units' in kwargs: del kwargs['units']
+    resolution = kwargs.get('resolution', 100)
+    if 'resolution' in kwargs: del kwargs['resolution']
     
     # select the c and mesh of the species:
-    if species == 'A': # select the mesh and c for species A
+    if species == 'A' or species == 'a': # select the mesh and c for species A
         mesh = self.meshA
         c = self.cA
-    elif species == 'B': # select the mesh and c for species B
+    elif species == 'B' or species == 'b': # select the mesh and c for species B
         mesh = self.meshB
         c = self.cB
     else: raise ValueError('Choose between the species \'A\' and \'B\' only!')
+    
+    elec = self.el # positions of the electrode
+    
+    # the mesh can be quite large sometimes, it is not always nessesary to display all pixels
+    if resolution < 100:
+        idx0 = np.round(np.linspace(0, mesh[0].shape[0] - 1, round(resolution/100 * mesh[0].shape[0]))).astype(int) # zeroth dim to shrink
+        idx1 = np.round(np.linspace(0, mesh[0].shape[1] - 1, round(resolution/100 * mesh[0].shape[1]))).astype(int) # first dim to shrink
+        mesh_LQ = mesh.copy()
+        mesh_LQ[0], mesh_LQ[1] = mesh_LQ[0][idx0][:,idx1], mesh_LQ[1][idx0][:,idx1]
+        c_LQ = c.copy()
+        c_LQ = c[:,idx0][:,:,idx1]
+        c, mesh = c_LQ, mesh_LQ
+        elec_LQ = np.array(np.round(elec.copy() * resolution/100-0.5)).astype(int) # shrink down the electrode pos
+        elec = np.unique(elec_LQ, axis=1) # remove all the duplicates
 
     f =[]
     # check which spatial units to use
@@ -131,7 +145,7 @@ def animate_2D(self, *args, **kwargs):
     if 'maxbar' not in kwargs: kwargs['maxbar'] = round(max(c.flatten()))
     if 'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','y ('+yunit+')']
     if 'barlabel' not in kwargs: kwargs['barlabel'] = 'Concentration ('+units[-1]+')'
-    if 'outline' not in kwargs: kwargs['outline'] =  self.el
+    if 'outline' not in kwargs: kwargs['outline'] =  elec
     
     # animate!
     anim = Animate_2D(x, c, **kwargs)
@@ -146,8 +160,8 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
     This function makes use of the animate_2D() function from GeneralFunctions.
     
     Parameters:
-        One of x, y or z to determine the cross section plane.
-        Otherwise see GeneralFunctions.animate_2D()
+        One of x, y or z to determine the cross section plane. (x=0 for example)
+        Otherwise see genfunc.animate_2D()
         
     Additional:
         species: specify which species to animate 'A' or 'B'
@@ -247,42 +261,50 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
     if 'ylim' not in kwargs: kwargs['ylim'] = [0, round(max(np.array(coord[1]).flatten()))]
     if 'minbar' not in kwargs: kwargs['minbar'] = 0
     if 'maxbar' not in kwargs: kwargs['maxbar'] = round(max(c.flatten()))
-    if 'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','y ('+yunit+')']
     if 'barlabel' not in kwargs: kwargs['barlabel'] = 'Concentration ('+units[-1]+')'
-    if 'outline' not in kwargs:
-        empty_inv = list(np.delete(range(6),self.empty))
-        outline = []
-        length = 0
+    
+    
+    ##### UPDATE THE OUTLINE 
+    # if 'outline' not in kwargs:
+    #     empty_inv = list(np.delete(range(6),self.empty))
+    #     outline = []
+    #     length = 0
         
-        if x !='all':
-            for i,el in enumerate(self.el):
-                if empty_inv[i] == 0 or empty_inv[i] == 1: continue
-                temp = el[:,el[2]==x]
-                pos = temp[(0,1),:]
-                outline.append(pos)
-                length = length + len(pos.flatten())
-            if length==0: print('The specified cross section does not include an electrode surface!')
-            else: kwargs['outline'] = outline
+    #     if x !='all':
+    #         for i,el in enumerate(self.el):
+    #             if empty_inv[i] == 0 or empty_inv[i] == 1: continue
+    #             temp = el[:,el[2]==x]
+    #             pos = temp[(0,1),:]
+    #             outline.append(pos)
+    #             length = length + len(pos.flatten())
+    #         if length==0: print('The specified cross section does not include an electrode surface!')
+    #         else: kwargs['outline'] = outline
             
-        if y !='all':
-            for i,el in enumerate(self.el):
-                if empty_inv[i] == 2 or empty_inv[i] == 3: continue
-                temp = el[:,el[1]==y]
-                pos = temp[(0,2),:]
-                outline.append(pos)
-                length = length + len(pos.flatten())
-            if length==0: print('The specified cross section does not include an electrode surface!')
-            else:kwargs['outline'] = outline
+    #     if y !='all':
+    #         for i,el in enumerate(self.el):
+    #             if empty_inv[i] == 2 or empty_inv[i] == 3: continue
+    #             temp = el[:,el[1]==y]
+    #             pos = temp[(0,2),:]
+    #             outline.append(pos)
+    #             length = length + len(pos.flatten())
+    #         if length==0: print('The specified cross section does not include an electrode surface!')
+    #         else:kwargs['outline'] = outline
             
-        if z !='all':
-            for i,el in enumerate(self.el):
-                if empty_inv[i] == 4 or empty_inv[i] == 5: continue
-                temp = el[:,el[0]==z]
-                pos = temp[(1,2),:]
-                outline.append(pos)
-                length = length + len(pos.flatten())
-            if length==0: print('The specified cross section does not include an electrode surface!')
-            else:kwargs['outline'] = outline
+    #     if z !='all':
+    #         for i,el in enumerate(self.el):
+    #             if empty_inv[i] == 4 or empty_inv[i] == 5: continue
+    #             temp = el[:,el[0]==z]
+    #             pos = temp[(1,2),:]
+    #             outline.append(pos)
+    #             length = length + len(pos.flatten())
+    #         if length==0: print('The specified cross section does not include an electrode surface!')
+    #         else:kwargs['outline'] = outline
+    
+    
+    if x != 'all' and'label' not in kwargs: kwargs['label'] = ['y ('+xunit+')','z ('+yunit+')']
+    elif y != 'all' and'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','z ('+yunit+')']
+    elif z != 'all' and 'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','y ('+yunit+')']
+    
     
     # animate!
     anim = Animate_2D(coord, c, **kwargs)

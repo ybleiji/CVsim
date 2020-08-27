@@ -432,8 +432,6 @@ def Animate_2D(mesh2D, z, *args, **kwargs):
             plotted in the graph)
         outline: draws an outline. (2D np.array)
             [[xel1, xel2, ...],[yel1, yel2, ...]]
-            or
-            [[xel1, xel2, ...],[yel1, yel2, ...] , [xel10, xel11, ...],[yel10, yel11, ...], ...]
         outlinecolor: the color of the outline
         
     Output: 
@@ -518,11 +516,7 @@ def Animate_2D(mesh2D, z, *args, **kwargs):
     fig, ax = fancyplot(**options)
     quad = ax.pcolormesh(X, Y, z[0], **options2D)
     if outline is not None:
-        x_outline = np.array([])
-        y_outline = np.array([])
-        for el in outline:
-            x_outline = np.append(x_outline, X[tuple(el)])
-            y_outline = np.append(y_outline, Y[tuple(el)])
+        x_outline,  y_outline = X[tuple(outline)], Y[tuple(outline)]
         plt.scatter(x_outline,y_outline, marker='s', s=2, color=outlinecolor)
     line, = ax.plot([],[])
     bar = fig.colorbar(quad)
