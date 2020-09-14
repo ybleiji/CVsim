@@ -30,7 +30,14 @@ def activity(self, x=None, y=None, z=None, tstart=None, tend=None,
     else: tstart = find_nearest(self.time, tstart)
     if tend is None: tend = self.Eapp.argmin()
     else: tend = find_nearest(self.time, tend)
-        
+    
+    if self.dim == '1D':
+        t = self.time[tstart:tend]
+        curdens = self.curdens[tstart:tend]
+        chargedens = abs(np.trapz(curdens, t, axis=0))
+        print("The total transfered charge between {} s and {} s is {:.4f} mC/cm^2.".format(tstart,tend,chargedens))
+        return
+    
     # integrate the current density to time: charge density = int curdens dt 
     t = self.time[tstart:tend]
     curdens = self.curdens[tstart:tend,:-1]
@@ -40,7 +47,7 @@ def activity(self, x=None, y=None, z=None, tstart=None, tend=None,
     chargedensgrid = self.elec*0
     
     # check which spatial units to use
-    if units[0] == 'um': f, units[0] = 1e4, '$\\mu m$'
+    if units[0] == 'um' or units[0] == '$\\mu m$': f, units[0] = 1e4, '$\\mu m$'
     elif units[0] == 'mm': f = 10
     elif units[0] == 'cm': f = 1
     elif units[0] == 'm': f = 1e-2
@@ -57,11 +64,7 @@ def activity(self, x=None, y=None, z=None, tstart=None, tend=None,
 
     # 2D and 3D will be different:
     if self.dim == '2D':
-        # remove the corner elements from elec
         elec = self.el
-        edge_y, edge_x = np.where((elec[0] == 0) | (elec[0] == self.y_steps-1)), np.where((elec[1] == 0) | (elec[1] == self.x_steps-1))
-        edge = np.concatenate((edge_x[0], edge_y[0]))
-        elec = np.delete(elec,edge,axis=1)
     
         # set the values of the grid
         chargedensgrid[tuple(elec)] = chargedens
@@ -100,7 +103,7 @@ def activity(self, x=None, y=None, z=None, tstart=None, tend=None,
             chargedensgrid = chargedensgrid[z0,:,:]
             if 'label' not in kwargs: kwargs['label'] = ['x ('+units[0]+')','y ('+units[0]+')']
             kwargs['title'] = 'z = {:.2f} {}'.format(z[z0],units[0])
-    else: raise TypeError('This fucntion is only available for 2D and 3D only!')
+    
     
     # check the xlim and ylim with the scaled values
     if 'xlim' not in kwargs: kwargs['xlim'] = [0, max(XX.flatten())]
@@ -113,6 +116,7 @@ def activity(self, x=None, y=None, z=None, tstart=None, tend=None,
     if 'maxbar' not in kwargs: 
         maxbar = round(max(chargedens.flatten()))
         if maxbar == 0: maxbar = max(chargedens.flatten()) # prevent that maxbar will be zero
+    if 'title' not in kwargs: kwargs['title'] = "t$_{start}$ = " + str(tstart) + " s, t$_{end}$ = " + str(tend) +" s" # show the range of integration
 
     # remove all the keys which should not be passed to fancyplot
     for key in ['saveas', 'minbar', 'maxbar', 'barlabel']: 
