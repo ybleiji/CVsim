@@ -130,6 +130,11 @@ def CV_2D(self, *args, **kwargs):
         electrode = np.zeros((y_steps,x_steps))
         electrode[:,0] = 1
         self.elec = electrode
+        
+    # check if the electrodes is at one of the walls:
+    wall_electrode_x, wall_electrode_y = False, False
+    if ((electrode[:,0] == 1).all()) and ((electrode[:,1:] == 0).all()): wall_electrode_x = True
+    elif ((electrode[0,:] == 1).all()) and ((electrode[1:,:] == 0).all()): wall_electrode_y = True
 
     # use findsurface to find the elements and directions of the surface
     elec, normal = self.findsurface(electrode)
@@ -170,9 +175,6 @@ def CV_2D(self, *args, **kwargs):
     #find the surface elements of the inverse of the electrolyte
     el_electrolyte, _ = self.findsurface(np.where(electrolyte == 1,0,1))    
     electrolyte[tuple(el_electrolyte)] = 1 # allow the ions to difusse into the surface of the electrode and insulating layer (needed for BC)
-    
-    # assign elec and normal to the class
-    self.el, self.normal = elec, normal
     
     # create the mesh and _profiles
     meshA = np.meshgrid(xvalA,yvalA)
@@ -296,11 +298,15 @@ def CV_2D(self, *args, **kwargs):
     curdens = np.append(curdens, ave_curdens.reshape((len(curdens),1)), axis=1) # last element of curdens will be the average
     
     # remove the elements which are at the edge of the simulation area
-    # border : [0] = {0,ysteps-1}, [1] = {0,xsteps-1}
-    edge_y, edge_x = np.where((elec[1] == 0) | (elec[1] == x_steps-1)), np.where((elec[0] == 0) | (elec[0] == y_steps-1))
-    edge = np.concatenate((edge_x[0], edge_y[0]))
+    # border : [0] = {0,zsteps-1}, [1] = {0,ysteps-1}, [2] = {0,xsteps-1}
+    edge_x, edge_y = np.array([]), np.array([])
+    if not wall_electrode_x: edge_x = np.where((elec[1] == 0) | (elec[1] == x_steps-1))[0]
+    if not wall_electrode_y: edge_y = np.where((elec[0] == 0) | (elec[0] == y_steps-1))[0]
+    
+    edge = np.concatenate((edge_x, edge_y))
     curdens = np.delete(curdens,edge,axis=1)
-         
+    elec, normal = np.delete(elec,edge,axis=1),  np.delete(normal,edge,axis=1)
+    
     if self.feedback: 
         tot_t = time.perf_counter() - t0
         unitstr = 'sec'
@@ -325,6 +331,7 @@ def CV_2D(self, *args, **kwargs):
         # k_a = ECrateconst(Eapp_r[idx-1], Ef0n, k0[1], T_C, -beta)
         # flux = (k_a*c_new[1,1] - k_c*c_new[0,1])/(1 + dx[1]/D[1]*k_a + dx[0]/D[0]*k_c ) # in mol/cm^s/s
     
+    self.el, self.normal = elec, normal
     self.time, self.Eapp, self.curdens = Time, Eapp, curdens
     self.meshA, self.meshB = meshA, meshB
     self.cA, self.cB = c_new[:,0]*1e3, c_new[:,1]*1e3

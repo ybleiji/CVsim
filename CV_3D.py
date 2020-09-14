@@ -146,18 +146,6 @@ def CV_3D(self, *args, **kwargs):
     if ((electrode[:,:,0] == 1).all()) and ((electrode[:,:,1:] == 0).all()): wall_electrode_x = True
     elif ((electrode[:,0,:] == 1).all()) and ((electrode[:,1:,:] == 0).all()): wall_electrode_y = True
     elif ((electrode[0,:,:] == 1).all()) and ((electrode[1:,:,:] == 0).all()): wall_electrode_z = True
-        
-    # check if a blocking layer is present
-    if 'block' in dir(self):
-        # use findsurface to find the elements and directions of the surface of the blocking layer
-        blocked, normal_block = self.findsurface(self.block)
-        blocked_surf = (blocked + normal_block).astype(int)
-        self.blocked = blocked
-        electrolyte = np.where(np.logical_or(electrode, self.block)==0,1,0)
-        blockpres = True # blocking layer is present
-    else: # where is the electrolyte and check if list elec is not empty
-        electrolyte = np.where(electrode==0,1,0)
-        blockpres = False # blocking layer is not present
     
     # use findsurface to find the elements and directions of the surface
     elec, normal = self.findsurface(electrode)
@@ -165,23 +153,43 @@ def CV_3D(self, *args, **kwargs):
     # normal is a list containing the corresponding normal vectors (not normalized)
     # the zeroth entry is the z value, first is y and second is x
     
-    # allow the ions to difusse into the surface of the elec/blocking layer (needed for BC)
-    if blockpres: 
-        electrolyte[tuple(blocked)] = 1
-        # remove the elements from normal and elec which are blocked
-        temp = np.concatenate((elec,np.array(np.where(self.block==1))),axis=1)
-        uniq, inv, cnt = np.unique(temp, axis=1, return_counts = True, return_inverse=True) # find the positions of the duplicates with cnt
-        dup_idx = np.where(cnt[inv]>1)[0] # select the duplicates in the original order
-        dup_idx = dup_idx[np.where(dup_idx <= len(elec.T))[0]] # take only the duplicates from the elec array
-        elec = np.delete(elec.T,dup_idx,axis=0).T # remove the duplicates
-        normal = np.delete(normal.T,dup_idx,axis=0).T # remove the duplicates
-    electrolyte[tuple(elec)] = 1        
-        
     # find the surface elements by displacing the electrode element with the normal vector
     el_surfx = np.array([elec[0], elec[1], elec[2] + normal[2]]).astype(np.int)
     el_surfy = np.array([elec[0], elec[1] + normal[1], elec[2]]).astype(np.int)
     el_surfz = np.array([elec[0] + normal[0], elec[1], elec[2]]).astype(np.int)
-
+    
+    #check if a blocking layer is present
+    if 'block' in dir(self): # use findsurface to find the elements and directions of the surface of the blocking layer
+        blocked, normal_block  = self.findsurface(self.block)
+        blocked_surf =  (blocked + normal_block).astype(int)
+        electrolyte = np.where(np.logical_or(electrode,self.block)==0,1,0)
+        
+        # find the elements which directly border to the insulator
+        blocked_surfz = blocked + np.array([normal_block[0],np.zeros(len(normal_block[0])),np.zeros(len(normal_block[0]))])
+        blocked_surfy = blocked + np.array([np.zeros(len(normal_block[0])),normal_block[1],np.zeros(len(normal_block[0]))])
+        blocked_surfx = blocked + np.array([np.zeros(len(normal_block[0])),np.zeros(len(normal_block[0])),normal_block[2]])
+        blocked_surf_ext = np.unique(np.concatenate((blocked_surfz,blocked_surfy,blocked_surfx),axis=1),axis=1).astype(int)
+        
+        # remove the elements from normal and elec which are blocked or are next to the insulator surface
+        ext_ins = self.block.copy()
+        ext_ins[tuple(blocked_surf_ext)] = 1 # elec is also not allowed on the surface of the insulator
+        temp = np.concatenate((elec,np.array(np.where(ext_ins==1))),axis=1)
+        uniq, inv, cnt = np.unique(temp, axis=1, return_counts = True, return_inverse=True) # find the positions of the duplicates with cnt
+        dup_idx = np.where(cnt[inv]>1)[0] # select the duplicates in the original order
+        dup_idx = dup_idx[np.where(dup_idx <= len(elec.T))[0]] # take only the duplicates from the elec array
+        elec, normal = np.delete(elec.T,dup_idx,axis=0).T, np.delete(normal.T,dup_idx,axis=0).T # remove the duplicates
+        el_surfx, el_surfy, el_surfz = np.delete(el_surfx.T,dup_idx,axis=0).T, np.delete(el_surfy.T,dup_idx,axis=0).T, np.delete(el_surfz.T,dup_idx,axis=0).T # remove the duplicates
+        
+        self.blocked = blocked
+        blockpres = True # blocking layer is present
+    else: # where is the electrolyte and check if list elec0 is not empty
+        electrolyte = np.where(electrode==0,1,0)
+        blockpres = False # blocking layer is not present
+    
+    #find the surface elements of the inverse of the electrolyte
+    el_electrolyte, _ = self.findsurface(np.where(electrolyte == 1,0,1))    
+    electrolyte[tuple(el_electrolyte)] = 1 # allow the ions to difusse into the surface of the electrode and insulating layer (needed for BC)
+    
     # create the mesh and c_profiles
     meshA = np.meshgrid(xvalA,yvalA,zvalA)
     meshB = np.meshgrid(xvalB,yvalB,zvalB)
