@@ -9,7 +9,7 @@ This is the file that can be used to import CVsim into jupyter notebook
 """
 
 # the current version of the simulation
-version = '2.0'
+version = '2.1'
 
 # sys.path.append(curdir+direc)
 from .main import CV_sim as CVsim
