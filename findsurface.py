@@ -5,7 +5,7 @@ Created on Wed Aug  5 14:39:03 2020
 @author: bleiji
 """
 import numpy as np
-from itertools import combinations
+# from itertools import combinations
 
 
 def findsurface(self, electrode, retsurf=False):
@@ -223,6 +223,6 @@ def findsurface(self, electrode, retsurf=False):
             return elec, normal, electrode_surf
         
         else:
-            return elec, normal, el_surf, elec0, empty, normal0
+            return elec, normal
         
     else: raise ValueError('dim should be \'2D\' or \'3D\'!')    

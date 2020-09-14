@@ -5,7 +5,7 @@ Created on Wed Aug  5 14:42:57 2020
 @author: bleiji
 """
 
-import numpy as np
+# import numpy as np
 import matplotlib.pyplot as plt
 from .genfunc import checkkeys, fancyplot, find_nearest
 
@@ -75,7 +75,6 @@ def plot(self, Type='CV', *args, **kwargs):
             raise ValueError('The units should be \'mM\' or \'M\'!')
         plotoptions['label'] = ['Time (s)', 'Concentration ('+units+')']
     
-    
     #check keys
     allowedkeys = {'ylim':None,'xlim':None,'title':None,'legend':None,
                    'imagesize':None,'fontsize':None,'grid':None,'saveas':None,
@@ -104,55 +103,38 @@ def plot(self, Type='CV', *args, **kwargs):
             plotoptions['title'] = 'Average current density'
             plotoptions['color'] = 'r'
             plotoptions['showfig'] = False
-            fig = fancyplot(**plotoptions)
             plt.plot(self.Eapp, curdens[:,:-1], 'gray')
             plt.plot(self.Eapp, curdens[:,-1], 'r')
-            plt.show()
-            
+            fig = fancyplot(**plotoptions)
             
     elif Type == 'tE' or Type == 'te':
         # plot the time vs potential
         plotoptions['label'] = ['Time (s)', 'Potential (V)']
         fig = fancyplot(self.time, self.Eapp, **plotoptions)
         
-        
     elif Type == 'tI' or Type == 'ti':
         # plot the average current density vs time
         plotoptions['label'] = ['Time (s)', 'Current density '+units]
-        if self.dim == '1D': 
-            fig = fancyplot(self.time, curdens, **plotoptions)
+        if self.dim == '1D': fig = fancyplot(self.time, curdens, **plotoptions)
         elif self.dim == '2D' or self.dim=='3D':
             plotoptions['title'] = 'Average current density'
             fig = fancyplot(self.time, curdens[:,-1], **plotoptions)
             
-            
     elif Type == 'tcA' or Type == 'tca':
         # plot the concentration of A vs "the distance from the electrode"
         try: plotoptions['title'] # check if title is specified
-        except KeyError: plotoptions['title'] = 'Surface concentration vs time'
-        if self.dim == '1D':
-            fig = fancyplot(self.time, cA[:,0], **plotoptions)
-        elif self.dim == '2D':
-            
-            # update this!
-            fig = fancyplot(self.time, cA[:,50,0], **plotoptions)
-
-        elif self.dim == '3D':
-            raise NotImplementedError('3D plot not implemented yet!')            
+        except KeyError: plotoptions['title'] = 'Surface concentration of A vs time'
+        if self.dim == '1D': fig = fancyplot(self.time, cA[:,0], **plotoptions)
+        elif self.dim == '2D': tcplot2D(self.time,self.meshA, cA, 'A', *args, **kwargs)
+        elif self.dim == '3D': tcplot3D(self.time, self.meshA, cA, 'A', *args, **kwargs)
             
     elif Type == 'tcB' or Type == 'tcb':
         # plot the concentration of B vs "the distance from the electrode"
         try: plotoptions['title'] # check if title is specified
-        except KeyError: plotoptions['title'] = 'Surface concentration vs time'
-        if self.dim == '1D':
-            fig = fancyplot(self.time, cB[:,0], **plotoptions)
-        elif self.dim == '2D':
-            
-            # update this!
-            fig = fancyplot(self.time, cB[:,50,0], **plotoptions)
-        
-        elif self.dim == '3D':
-            raise NotImplementedError('3D plot not implemented yet!')     
+        except KeyError: plotoptions['title'] = 'Surface concentration of B vs time'
+        if self.dim == '1D': fig = fancyplot(self.time, cB[:,0], **plotoptions)
+        elif self.dim == '2D': tcplot2D(self.time,self.meshA, cB, 'B', *args, **kwargs)
+        elif self.dim == '3D': tcplot3D(self.time, self.meshB, cB, 'B', *args, **kwargs)  
             
     elif Type == 'tc':
         # plot both the concentrations of A and B vs the "distance from the electrode"
@@ -163,114 +145,164 @@ def plot(self, Type='CV', *args, **kwargs):
         if self.dim == '1D':
             fig = fancyplot([[self.time, cA[:,0]],[self.time, cB[:,0]]], **plotoptions)
         elif self.dim == '2D':
-            
-            # update this!
-            fig = fancyplot([[self.time, cA[:,50,0]],[self.time, cB[:,50,0]]], **plotoptions)
-            
+            if len(args) == 0:
+                raise ValueError('The argument should be a tuple specifying which pixel to show!')
+            if type(args[0]) == tuple:
+                x0,y0 = args[0]
+                X,Y = self.meshA
+                x,y = X[0,:],  Y[:,0]
+                # auto units: nm, um or cm (standard)
+                if x[-1] < 0.1: x, unitsx = x*1e4, '$\\mu m$' # convert to um
+                elif 0.1 <= x[-1] < 10: x, unitsx = x*10, 'mm' # convert to mm
+                else: unitsx = 'cm' # default
+                if y[-1] < 0.1: y, unitsy = y*1e4, '$\\mu m$' # convert to um
+                elif 0.1 <= y[-1] < 10: y, unitsy = y*10, 'mm' # convert to mm
+                else: unitsy = 'cm' # default
+                
+                plotoptions['label'] = ['Concentration (mM)', 'Time (s)']
+                plotoptions['title'] = 'x$_0$: {:.1f} {}, y$_0$: {:.1f} {}'.format(x[x0],unitsx,y[y0],unitsy)
+                plotoptions['style'] = ['r', 'k']
+                fig = fancyplot([[self.time, cA[:,y0,x0]],[self.time, cB[:,y0,x0]]], **plotoptions)
         elif self.dim == '3D':
-            raise NotImplementedError('3D plot not implemented yet!')
+            if len(args) == 0:
+                raise ValueError('The argument should be a tuple specifying which pixel to show!')
+            if type(args[0]) == tuple:
+                x0,y0,z0 = args[0]
+                X,Y,Z = self.meshA
+                x,y,z = X[0,:,0],  Y[:,0,0], Z[0,0,:]
+                # auto units: nm, um or cm (standard)
+                if x[-1] < 0.1: x, unitsx = x*1e4, '$\\mu m$' # convert to um
+                elif 0.1 <= x[-1] < 10: x, unitsx = x*10, 'mm' # convert to mm
+                else: unitsx = 'cm' # default
+                if y[-1] < 0.1: y, unitsy = y*1e4, '$\\mu m$' # convert to um
+                elif 0.1 <= y[-1] < 10: y, unitsy = y*10, 'mm' # convert to mm
+                else: unitsy = 'cm' # default
+                if z[-1] < 0.1: z, unitsz = z*1e4, '$\\mu m$' # convert to um
+                elif 0.1 <= z[-1] < 10: z, unitsz = z*10, 'mm' # convert to mm
+                else: unitsz = 'cm' # default
+                
+                plotoptions['label'] = ['Concentration (mM)', 'Time (s)']
+                plotoptions['title'] = 'x$_0$: {:.1f} {}, y$_0$: {:.1f} {}, z$_0$: {:.1f} {}'.format(x[x0],unitsx,y[y0],unitsy,z[z0],unitsz)
+                plotoptions['style'] = ['r', 'k']
+                fig = fancyplot([[self.time, cA[:,z0,y0,x0]],[self.time, cB[:,z0,y0,x0]]], **plotoptions)
+            else: raise TypeError('One should give the indices of the location to be plotten using a tuple: (0,2,1) for example.')
    
     if retfig: return fig
 
-
-def activity(self, tstart=None, tend=None, units=['um','C/cm2'], showhis=False,
-             *args, **kwargs):
+def tcplot2D(time, mesh, conc, AorB, *args, **kwargs):
     '''
-    This functions calculates the hotspots of an arbitrary shaped electrode.
-    The activity is defined as the total charge transferred.
-    
-    Paramters:
-        tstart: lower bound of the integral in s (float) (default = 0)
-        tend: upper bound of the itegral in s (float) (default = t(E = E1))
-        units: specify the units of the labels
-    
+    This function will be used for plotting a 2D plot of the concentration over time
     '''
-    if self.dim != '2D': raise NotImplementedError('This function is only available for 2D!')
-    
-    if tstart is None: tstart = 0
-    else: tstart = find_nearest(self.time, tstart)
-    if tend is None: tend = self.Eapp.argmin()
-    else: tend = find_nearest(self.time, tend)
-        
-    # integrate the current density to time: charge density = int curdens dt 
-    t = self.time[tstart:tend]
-    curdens = self.curdens[tstart:tend,:-1]
-    chargedens = abs(np.trapz(curdens, t, axis=0))
-
-    # set the charge transfer grid, use the size of the electrode
-    chargedensgrid = self.elec*0
-
-    # remove the corner elements from elec
-    elec = self.el
-    edge_y, edge_x = np.where((elec[0] == 0) | (elec[0] == self.y_steps-1)), np.where((elec[1] == 0) | (elec[1] == self.x_steps-1))
-    edge = np.concatenate((edge_x[0], edge_y[0]))
-    elec = np.delete(elec,edge,axis=1)
-
-    # set the values of the grid
-    chargedensgrid[tuple(elec)] = chargedens
-    
-    f =[]
-    # check which spatial units to use
-    if units[0] == 'um': f.append(1e4)
-    elif units[0] == 'mm': f.append(10)
-    elif units[0] == 'cm': f.append(1)
-    elif units[0] == 'm': f.append(1e-2)
-    else: raise ValueError('The first element of units needs to be um, mm, cm or m only!')
-    xunit = units[0]
-    
-    if len(units) != 2:            
-        if units[1] == 'um': f.append(1e4)
-        elif units[1] == 'mm': f.append(10)
-        elif units[1] == 'cm': f.append(1)
-        elif units[1] == 'm': f.append(1e-2)
-        else: raise ValueError('The second element of units needs to be um, mm, cm or m only!')
-        yunit = units[1]
-    else: 
-        f.append(f[0])
-        yunit = xunit
-    
-    # check which units to use for the concentration
-    if units[-1] == 'C/cm2': pass
-    elif units[-1] in ['C/mm2', 'uC/um2']: chargedens = chargedens*1e-2
-    elif units[-1] == 'C/um2': chargedens = chargedens*1e-8
-    elif units[-1] == 'mC/cm2': chargedens = chargedens*1e6
-    elif units[-1] == 'mC/um2': chargedens = chargedens*1e-5
-    else: raise ValueError('The last element of units needs to be \'C/cm2\', \'C/um2\', \'C/mm2\', \'C/cm2\', \'mC/cm2\' or \'mC/um2\' only!  {} is not allowed!'.format(units[-1]))
-    barunit = units[-1].replace('2', '$^2$')
-    
-    # set the X and Y values
-    X,Y = self.meshA
-    X,Y = f[0]*X, f[1]*Y
-    
-    # check the xlim and ylim with the scaled values
-    if 'xlim' not in kwargs: kwargs['xlim'] = [0, round(max(X.flatten()))]
-    if 'ylim' not in kwargs: kwargs['ylim'] = [0, round(max(Y.flatten()))]
-    if 'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','y ('+yunit+')']
     saveas = kwargs.get('saveas', None)
-    if 'saveas' in kwargs: del kwargs['saveas']
-    if saveas != None: 
-        if 'fontsize' not in kwargs: kwargs['fontsize'] = 10
-    barlabel = kwargs.get('barlabel', 'Charge density ('+barunit+')' )
-    minbar = kwargs.get('minbar', 0)
-    maxbar = kwargs.get('maxbar', round(max(chargedens.flatten())))
     
-    # plot the pcolormesh
-    fig, ax = fancyplot(**kwargs, returnfig = True)
-    colorplot = plt.pcolormesh(X,Y, chargedensgrid, cmap = 'inferno', vmax=minbar, vmin=maxbar) 
-    bar = fig.colorbar(colorplot)
-    bar.set_label(label=barlabel) #add a label to the colorbar
-    # save the figure if wanted
-    if saveas != None: plt.savefig(fname=saveas, dpi=300, bbox_inches='tight')
-    plt.show()
+    X,Y = mesh
+    x,y = X[0,:],  Y[:,0]
+    # auto units: nm, um or cm (standard)
+    if x[-1] < 0.1: x, unitsx = x*1e4, '$\\mu m$' # convert to um
+    elif 0.1 <= x[-1] < 10: x, unitsx = x*10, 'mm' # convert to mm
+    else: unitsx = 'cm' # default
+    if y[-1] < 0.1: y, unitsy = y*1e4, '$\\mu m$' # convert to um
+    elif 0.1 <= y[-1] < 10: y, unitsy = y*10, 'mm' # convert to mm
+    else: unitsy = 'cm' # default
+        
+    x0, y0 = 0, int(len(y)/2)
+    options = {'grid': False,
+               'origin': False,
+               'returnfig': True,
+               'saveas': None}
     
-    # plot the histogram if showhis
-    if showhis:
-        # fig, ax = fancyplot([],[])
-        plt.hist(chargedens, bins='auto')
-        # plt.title("Histogram with 'auto' bins")
-        plt.title('Parameters: D={} cm$^2$/s, k$_0$={} cm/s, $\\nu$= {} mV/s'.format(self.D, self.k0, 1000*self.scanrate))
-        plt.xlabel('Charge density ('+barunit+')')
-        plt.ylabel('Amount')
+    if len(args) == 0 or args[0] == 'x': # x slice is the default
+        plot2D = True
+        if len(args) > 1: y0 = args[1]
+        options['title'] = 'y$_0$: {:.1f} {}'.format(y[y0],unitsy)
+        options['label'] = ['Time (s)', 'Position x ('+unitsx+')']
+        fig, ax = fancyplot(**options)
+        quad = ax.pcolormesh(time, x, conc[:, y0, :].T, cmap='inferno')
+    elif args[0] == 'y':
+        plot2D = True
+        if len(args) > 1: x0 = args[1]
+        options['title'] = 'x$_0$: {:.1f} {}'.format(x[x0],unitsx)
+        options['label'] = ['Time (s)', 'Position y ('+unitsy+')']
+        fig, ax = fancyplot(**options)
+        quad = ax.pcolormesh(time, y, conc[:, :, x0].T, cmap='inferno')
+    elif type(args[0]) is tuple:
+        plot2D = False
+        x0,y0 = args[0]
+        fancyplot(time, conc[:,y0,x0], 
+                  label= ['Time (s)', 'Concentration of '+AorB+' (mM)'], 
+                  title = 'x$_0$: {:.1f} {}, y$_0$: {:.1f} {}'.format(x[x0],unitsx,y[y0],unitsy))
+        if saveas != None: plt.savefig(fname=saveas, dpi=300, bbox_inches='tight')
         plt.show()
+    else: raise ValueError('The only valid inputs are: \'x\', \'y\' or a postion in the 2D matrix (x,y)')
     
-    self.chargedens = chargedens
+    if plot2D:
+        bar = fig.colorbar(quad)
+        bar.set_label(label='Concentration of '+AorB+' (mM)') #add a label to the colorbar
+        if saveas != None: plt.savefig(fname=saveas, dpi=300, bbox_inches='tight')
+        plt.show()
+
+def tcplot3D(time, mesh, conc, AorB, *args, **kwargs):
+    '''
+    This function will be used for plotting a 2D plot of the concentration over time
+    '''
+    saveas = kwargs.get('saveas', None)
+    
+    X,Y,Z = mesh
+    x,y,z = X[0,:,0],  Y[:,0,0], Z[0,0,:]
+    # auto units: nm, um or cm (standard)
+    if x[-1] < 0.1: x, unitsx = x*1e4, '$\\mu m$' # convert to um
+    elif 0.1 <= x[-1] < 10: x, unitsx = x*10, 'mm' # convert to mm
+    else: unitsx = 'cm' # default
+    if y[-1] < 0.1: y, unitsy = y*1e4, '$\\mu m$' # convert to um
+    elif 0.1 <= y[-1] < 10: y, unitsy = y*10, 'mm' # convert to mm
+    else: unitsy = 'cm' # default
+    if z[-1] < 0.1: z, unitsz = z*1e4, '$\\mu m$' # convert to um
+    elif 0.1 <= z[-1] < 10: z, unitsz = z*10, 'mm' # convert to mm
+    else: unitsz = 'cm' # default
+        
+    x0, y0, z0 = 0, int(len(y)/2), int(len(z)/2)
+    options = {'grid': False,
+               'origin': False,
+               'returnfig': True,
+               'saveas': None}
+    
+    if len(args) == 0 or args[0] == 'x': # x slice is the default
+        plot2D = True
+        if len(args) > 1: y0 = args[1]
+        if len(args) > 2: z0 = args[2]
+        options['title'] = 'y$_0$: {:.1f} {}, z$_0$: {:.1f} {}'.format(y[y0],unitsy,z[z0],unitsz)
+        options['label'] = ['Time (s)', 'Position x ('+unitsx+')']
+        fig, ax = fancyplot(**options)
+        quad = ax.pcolormesh(time, x, conc[:, z0, y0, :].T, cmap='inferno')
+    elif args[0] == 'y':
+        plot2D = True
+        if len(args) > 1: x0 = args[1]
+        if len(args) > 2: z0 = args[2]
+        options['title'] = 'x$_0$: {:.1f} {}, z$_0$: {:.1f} {}'.format(x[x0],unitsx,z[z0],unitsz)
+        options['label'] = ['Time (s)', 'Position y ('+unitsy+')']
+        fig, ax = fancyplot(**options)
+        quad = ax.pcolormesh(time, y, conc[:, z0, :, x0].T, cmap='inferno')
+    elif args[0] == 'z':
+        plot2D = True
+        if len(args) > 1: x0 = args[1]
+        if len(args) > 2: y0 = args[2]
+        options['title'] = 'x$_0$: {:.1f} {}, y$_0$: {:.1f} {}'.format(x[x0],unitsx,y[y0],unitsy)
+        options['label'] = ['Time (s)', 'Position z ('+unitsz+')']
+        fig, ax = fancyplot(**options)
+        quad = ax.pcolormesh(time, z, conc[:, :, y0, x0].T, cmap='inferno')
+    elif type(args[0]) is tuple:
+        plot2D = False
+        x0,y0,z0 = args[0]
+        fancyplot(time, conc[:,z0,y0,x0], 
+                  label= ['Time (s)', 'Concentration of '+AorB+' (mM)'], 
+                  title = 'x$_0$: {:.1f} {}, y$_0$: {:.1f} {}, z$_0$: {:.1f} {}'.format(x[x0],unitsx,y[y0],unitsy,z[z0],unitsz))
+        if saveas != None: plt.savefig(fname=saveas, dpi=300, bbox_inches='tight')
+        plt.show()
+    else: raise ValueError('The only valid inputs are: \'x\', \'y\', \'z\' or a postion in the 3D matrix (x,y,z)')
+    
+    if plot2D:
+        bar = fig.colorbar(quad)
+        bar.set_label(label='Concentration of '+AorB+' (mM)') #add a label to the colorbar
+        if saveas != None: plt.savefig(fname=saveas, dpi=300, bbox_inches='tight')
+        plt.show()
+

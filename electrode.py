@@ -7,12 +7,11 @@ Created on Wed Aug  5 14:29:47 2020
 
 import numpy as np
 import matplotlib.pyplot as plt
-import GeneralFunctions as gf
 from PIL import Image
 
 
 def electrode(self, dim, electrode=None, gridtype='linear', extx=False,
-              Lxel=None, Lyel=None, Lzel=None):
+              Lx=None, Ly=None, Lz=None):
     '''
     Use electrode() to specify the electrode.
     If 1D:
@@ -27,9 +26,9 @@ def electrode(self, dim, electrode=None, gridtype='linear', extx=False,
         electrode: 2D/3D binary ndarray specifying 1 for electrode, 0 for electrodelyte (ndarray)
         gridtype: linear or non-linear grid (string, default=linear)
         extx: extend the x axis to L = 6*sqrt(D*t_sim) (boolean, default=False)
-        Lxel: length of the electrode in x in cm (float)
-        Lyel: length of the electrode in y in cm (float)
-        Lzel: length of the electrode in z in cm (float)
+        Lx: length of the electrode in x in cm (float)
+        Ly: length of the electrode in y in cm (float)
+        Lz: length of the electrode in z in cm (float)
     '''
     if dim == '1D':
         pass # do nothing
@@ -40,19 +39,12 @@ def electrode(self, dim, electrode=None, gridtype='linear', extx=False,
         elif electrode.shape > (0,0) and extx: # extrapolate the x direction 
             raise NotImplementedError('No option to extrapolate the electrode yet!')
         
-        
         elif electrode.shape > (0,0): # use the electrode dimension as simulation dimensions
             self.elec = electrode
             # use the amount of steps determined by the electrode
             self.y_steps, self.x_steps = electrode.shape
-            if Lxel is not None: self.Lx = Lxel
-            if Lyel is not None: self.Ly = Lyel
-            
-            
-            
-        # electrode should be specified, and the surface should be found
-            
-            
+            if Lx is not None: self.Lx = Lx
+            if Ly is not None: self.Ly = Ly
             
     elif dim == '3D':
         if electrode is None:
@@ -61,11 +53,9 @@ def electrode(self, dim, electrode=None, gridtype='linear', extx=False,
             self.elec = electrode
             # use the amount of steps determined by the electrode
             self.z_steps, self.y_steps, self.x_steps = electrode.shape
-            if Lxel is not None: self.Lx = Lxel
-            if Lyel is not None: self.Ly = Lyel
-            if Lzel is not None: self.Lz = Lzel
-            
-        # electrode should be specified, and the surface should be found
+            if Lx is not None: self.Lx = Lx
+            if Ly is not None: self.Ly = Ly
+            if Lz is not None: self.Lz = Lz
         
     else: raise ValueError('dim should be \'1D\', \'2D\' or \'3D\'!')
     self.dim = dim
@@ -78,11 +68,14 @@ def insulator(self, dim, block, show=False, *args, **kwargs):
     the concentration. This so called blocking layer blocks the diffusion
     of the ions. So in these regions, no ions can diffusion into.
     
-    Input parameters:
+    Input parameters:       
         dim: dimension, choose from '2D' or '3D'.
         block: matrix of the blocking layer (2D np.array)
         
     Optional:
+        Lx: length of the electrode in x in cm (float)
+        Ly: length of the electrode in y in cm (float)
+        Lz: length of the electrode in z in cm (float)
         
     '''
     # check the dimension
@@ -99,7 +92,6 @@ def insulator(self, dim, block, show=False, *args, **kwargs):
         elif 'Lx' not in dir(self): self.Lx = self.x_steps*1e-4
         if 'Ly' in kwargs and 'Ly' not in dir(self): self.Ly = kwargs['Ly']
         elif 'Ly' not in dir(self): self.Ly = self.y_steps*1e-4
-        
         
     if dim == '3D':
         # check if the shape corresponds to the shape of the electrode
@@ -118,7 +110,6 @@ def insulator(self, dim, block, show=False, *args, **kwargs):
         plt.xlabel('x (um)')
         plt.ylabel('y (um)')
         plt.show()
- 
     
 def electrode_from_image(self, imagepath, show=False, *args, **kwargs):
     '''

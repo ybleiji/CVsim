@@ -18,12 +18,11 @@ def CV_2D(self, *args, **kwargs):
         A^+n + e^- -> B^+n-1
     We are reducing ion A to ion B by transfering 1 electron. 
     We assume that:
-        the diffusion to the electrode is in 1D
-        the electrode is flat and homogeneous
+        the diffusion to the electrode is in 2D
         the concentration profile is constant at t= 0
         the length of the diffusion profile is max Lx = 6*sqrt(D*t_sim)
         
-    All the nessarely parameters must be set using __init__() and paramters().
+    All the nessarely parameters must be set using __init__() and parameters().
         E_app: the apllied voltage in V (np.array)
         E0: start potential in V (float)
         E1: return potential 1 in V (float)
@@ -132,29 +131,49 @@ def CV_2D(self, *args, **kwargs):
         electrode[:,0] = 1
         self.elec = electrode
 
+    # use findsurface to find the elements and directions of the surface
+    elec, normal = self.findsurface(electrode)
+    # elec is an 2xN array containing all unique surface elements
+    # normal is an 2xN array containing all the normal vectors to the surface 
+    
+    # find the surface elements by displacing the electrode element with the normal vector
+    el_surfx = np.array([elec[0], elec[1] + normal[1]]) 
+    el_surfy = np.array([elec[0] + normal[0], elec[1]])  
+    
     #check if a blocking layer is present
     if 'block' in dir(self): # use findsurface to find the elements and directions of the surface of the blocking layer
         blocked, normal_block  = self.findsurface(self.block)
-        blocked_surf = blocked + normal_block
-        self.blocked = blocked
-        elec_block = electrode + 2 * self.block
-        electrode = np.where(elec_block==1,1,0) # remove part of electrode that is blocked
+        blocked_surf =  (blocked + normal_block).astype(int)
         electrolyte = np.where(np.logical_or(electrode,self.block)==0,1,0)
+        
+        # find the elements which directly border to the insulator
+        blocked_surfy = blocked + np.array([normal_block[0],np.zeros(len(normal_block[0]))])
+        blocked_surfx = blocked + np.array([np.zeros(len(normal_block[1])),normal_block[1]])
+        blocked_surf_ext = np.unique(np.concatenate((blocked_surfy,blocked_surfx),axis=1),axis=1).astype(int)
+        
+        # remove the elements from normal and elec which are blocked or are next to the insulator surface
+        ext_ins = self.block.copy()
+        ext_ins[tuple(blocked_surf_ext)] = 1 # elec is also not allowed on the surface of the insulator
+        temp = np.concatenate((elec,np.array(np.where(ext_ins==1))),axis=1)
+        uniq, inv, cnt = np.unique(temp, axis=1, return_counts = True, return_inverse=True) # find the positions of the duplicates with cnt
+        dup_idx = np.where(cnt[inv]>1)[0] # select the duplicates in the original order
+        dup_idx = dup_idx[np.where(dup_idx <= len(elec.T))[0]] # take only the duplicates from the elec array
+        elec, normal = np.delete(elec.T,dup_idx,axis=0).T, np.delete(normal.T,dup_idx,axis=0).T # remove the duplicates
+        el_surfx, el_surfy = np.delete(el_surfx.T,dup_idx,axis=0).T, np.delete(el_surfy.T,dup_idx,axis=0).T # remove the duplicates
+        
+        self.blocked = blocked
         blockpres = True # blocking layer is present
     else: # where is the electrolyte and check if list elec0 is not empty
         electrolyte = np.where(electrode==0,1,0)
         blockpres = False # blocking layer is not present
     
-    # use findsurface to find the elements and directions of the surface
-    elec, normal = self.findsurface(electrode)
-    self.el, self.normal = elec, normal
-    # elec is an 2xN array containing all unique surface elements
-    # normal is an 2xN array containing all the normal vectors to the surface 
+    #find the surface elements of the inverse of the electrolyte
+    el_electrolyte, _ = self.findsurface(np.where(electrolyte == 1,0,1))    
+    electrolyte[tuple(el_electrolyte)] = 1 # allow the ions to difusse into the surface of the electrode and insulating layer (needed for BC)
     
-    # allow the ions to difusse into the surface of the elec0/blocking layer (needed for BC)
-    electrolyte[tuple(elec)] = 1
-    if blockpres: electrolyte[tuple(blocked)] = 1
-            
+    # assign elec and normal to the class
+    self.el, self.normal = elec, normal
+    
     # create the mesh and _profiles
     meshA = np.meshgrid(xvalA,yvalA)
     meshB = np.meshgrid(xvalB,yvalB)
@@ -170,10 +189,6 @@ def CV_2D(self, *args, **kwargs):
     Dm_x, Dm_y = [np.reshape(D*dt/el**2, (2,1,1)) for el in [dx,dy]]
     self.dt = dt
 
-    # find the surface elements by displacing the electrode element with the normal vector
-    el_surfx = np.array([elec[0], elec[1] + normal[1]]) 
-    el_surfy = np.array([elec[0] + normal[0], elec[1]])  
-    
     # normalize the normal vector
     norm_dx_dy = normal * np.array([[dy[0]],[dx[0]]])
     normal = abs(norm_dx_dy/(np.sqrt(norm_dx_dy[0]**2 + norm_dx_dy[1]**2)))
@@ -205,7 +220,9 @@ def CV_2D(self, *args, **kwargs):
     
     # make dictionary to speed up the simulation 
     c_cache = {}
-    c_cache[0], c_prev = c_profile, c_profile
+    c_profile0 = c_profile.copy()
+    if blockpres: c_profile0[:,blocked[0],blocked[1]] = 0 # set c equal to zero at the surface of the blocking layer
+    c_cache[0], c_prev = c_profile0, c_profile
     
     try: fbN = self.fbN
     except AttributeError: fbN = int(round(len(time_r)/11))
@@ -220,7 +237,7 @@ def CV_2D(self, *args, **kwargs):
         else: print('Amount of iterations required: {}\n'.format(len(time_r)))
         if len(time_r) >  fbN:
             infobool = True
-            print('################################################')
+            print('##################################################')
             print('# {:>6}| {:>7}| {:>10}| {:>12} #'.format('iter','i left','Est. time left','Elapsed time'))
             print('#-------|--------|---------------|--------------#')
     
@@ -243,17 +260,19 @@ def CV_2D(self, *args, **kwargs):
         c_new[:,[0,-1]], c_new[:,:,[0,-1]] = c_new[:,[1,-2]], c_new[:,:,[1,-2]]
         #set the corners, no flux through the corners
         c_new[:,[0,-1,0,-1],[0,-1,-1,0]] = c_new[:,[1,-2,1,-2],[1,-2,-2,1]] 
-        if blockpres: c_new[:,blocked[0],blocked[1]] = c_new[:,blocked_surf[0],blocked_surf[1]]
         # electrochemical part
         flux_a = k_a[idx] * (A * c_new[1, el_surfx[0], el_surfx[1]] + B * c_new[1, el_surfy[0], el_surfy[1]]) # calculate the flux for the anodic reaction
         flux_c = k_c[idx] * (A * c_new[0, el_surfx[0], el_surfx[1]] + B * c_new[0, el_surfy[0], el_surfy[1]]) # calculate the flux for the cathodic reaction
         flux = (flux_a - flux_c)/(1 + C * (k_a[idx] + k_c[idx])) * np.array([[1],[-1]]) # change the sign the the order species: Jox = - Jred
         bc = A * c_new[:,el_surfx[0], el_surfx[1]] + B * c_new[:,el_surfy[0], el_surfy[1]] + flux * C
         c_new[:,elec[0],elec[1]] = np.where(bc > 0, bc, 0) # prevents that c drops below 0
+        if blockpres: c_new[:,blocked[0],blocked[1]] = c_new[:,blocked_surf[0],blocked_surf[1]]
         c_prev = c_new # overwrite previous value with new value
         if t == Time[counter_t]: # check if the output timestamp is reached, if yes store value
-            c_cache[counter_t] = c_new
-            counter_t += 1  
+            cnew = c_new.copy()
+            if blockpres: cnew[:,blocked[0],blocked[1]] = 0 # set c equal to zero at the surface of the blocking layer
+            c_cache[counter_t] = cnew
+            counter_t += 1   
     #end of the sim 
     
     # extract the values from the directory
@@ -288,7 +307,7 @@ def CV_2D(self, *args, **kwargs):
         if tot_t > 120:
             unitstr = 'min'
             tot_t /= 60
-        if infobool: print('################################################\n')
+        if infobool: print('##################################################\n')
         print(('Total duration of the simulation: {:.4} '+unitstr).format(tot_t))
  
     # =============================================================================

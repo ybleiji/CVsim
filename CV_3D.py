@@ -17,10 +17,11 @@ def CV_3D(self, *args, **kwargs):
     A^+n + e^- -> B^+n-1
     We are reducing ion A to ion B by transfering 1 electron. 
     We assume that:
-    the concentration profile is constant at t= 0
-    the length of the diffusion profile is max Lx = 6*sqrt(D*t_sim)
+        the diffusion to the electrode is in 3D
+        the concentration profile is constant at t= 0
+        the length of the diffusion profile is max Lx = 6*sqrt(D*t_sim)
     
-    All the nessarely parameters must be set using __init__() and paramters().
+    All the nessarely parameters must be set using __init__() and parameters().
     E_app: the apllied voltage in V (np.array)
     E0: start potential in V (float)
     E1: return potential 1 in V (float)
@@ -139,46 +140,43 @@ def CV_3D(self, *args, **kwargs):
         electrode = np.zeros((z_steps,y_steps,x_steps),dtype=np.int32)
         electrode[:,:,0] = 1
         self.elec = electrode
-       
-    
-       
-    
-    ####### 
-    # findsurface for 3D will be modified to have a single list only instead of 6
-    # adjust blocking layer
-    # adjust elec0 and normal0
-    # adjust flux equations
-    # adjust curdens equations
-    
-    
-    
-    
-    
+      
+    # check if the electrodes is at one of the walls:
+    wall_electrode_x, wall_electrode_y, wall_electrode_z = False, False, False
+    if ((electrode[:,:,0] == 1).all()) and ((electrode[:,:,1:] == 0).all()): wall_electrode_x = True
+    elif ((electrode[:,0,:] == 1).all()) and ((electrode[:,1:,:] == 0).all()): wall_electrode_y = True
+    elif ((electrode[0,:,:] == 1).all()) and ((electrode[1:,:,:] == 0).all()): wall_electrode_z = True
+        
     # check if a blocking layer is present
     if 'block' in dir(self):
         # use findsurface to find the elements and directions of the surface of the blocking layer
-        blocked, normal_block, _ = self.findsurface(self.block)
-        blocked_surf = blocked + normal_block
+        blocked, normal_block = self.findsurface(self.block)
+        blocked_surf = (blocked + normal_block).astype(int)
         self.blocked = blocked
-        elec_block = electrode + 2*self.block
-        electrode = np.where(elec_block==1,1,0) # remove part of electrode that is blocked0
         electrolyte = np.where(np.logical_or(electrode, self.block)==0,1,0)
         blockpres = True # blocking layer is present
-    else: # where is the electrolyte and check if list elec0 is not empty
+    else: # where is the electrolyte and check if list elec is not empty
         electrolyte = np.where(electrode==0,1,0)
         blockpres = False # blocking layer is not present
     
     # use findsurface to find the elements and directions of the surface
-    elec, normal, el_surf, elec0, empty, normal0 = self.findsurface(electrode)
-    self.el, self.normal = elec, normal
+    elec, normal = self.findsurface(electrode)
     # elec is a list containing the positions of the electrode
     # normal is a list containing the corresponding normal vectors (not normalized)
     # the zeroth entry is the z value, first is y and second is x
     
-    # allow the ions to difusse into the surface of the elec0/blocking layer (needed for BC)
-    electrolyte[tuple(elec)] = 1
-    if blockpres: electrolyte[tuple(blocked)] = 1
-     
+    # allow the ions to difusse into the surface of the elec/blocking layer (needed for BC)
+    if blockpres: 
+        electrolyte[tuple(blocked)] = 1
+        # remove the elements from normal and elec which are blocked
+        temp = np.concatenate((elec,np.array(np.where(self.block==1))),axis=1)
+        uniq, inv, cnt = np.unique(temp, axis=1, return_counts = True, return_inverse=True) # find the positions of the duplicates with cnt
+        dup_idx = np.where(cnt[inv]>1)[0] # select the duplicates in the original order
+        dup_idx = dup_idx[np.where(dup_idx <= len(elec.T))[0]] # take only the duplicates from the elec array
+        elec = np.delete(elec.T,dup_idx,axis=0).T # remove the duplicates
+        normal = np.delete(normal.T,dup_idx,axis=0).T # remove the duplicates
+    electrolyte[tuple(elec)] = 1        
+        
     # find the surface elements by displacing the electrode element with the normal vector
     el_surfx = np.array([elec[0], elec[1], elec[2] + normal[2]]).astype(np.int)
     el_surfy = np.array([elec[0], elec[1] + normal[1], elec[2]]).astype(np.int)
@@ -187,6 +185,7 @@ def CV_3D(self, *args, **kwargs):
     # create the mesh and c_profiles
     meshA = np.meshgrid(xvalA,yvalA,zvalA)
     meshB = np.meshgrid(xvalB,yvalB,zvalB)
+    
     c_profileA, c_profileB = c_init[0]*electrolyte, c_init[1]*electrolyte # in mol/cm^3
     c_profile = np.array([c_profileA,c_profileB]) # in mol/cm^3
     
@@ -233,7 +232,9 @@ def CV_3D(self, *args, **kwargs):
     
     # make dictionary to speed up the simulation 
     c_cache = {}
-    c_cache[0], c_prev = c_profile, c_profile
+    c_profile0 = c_profile.copy()
+    if blockpres: c_profile0[:,blocked[0],blocked[1],blocked[2]] = 0 # set c equal to zero at the surface of the blocking layer
+    c_cache[0], c_prev = c_profile0, c_profile
     
     try: fbN = self.fbN
     except AttributeError: fbN = int(round(len(time_r)/11))
@@ -248,7 +249,7 @@ def CV_3D(self, *args, **kwargs):
         else: print('Amount of iterations required: {}\n'.format(len(time_r)))
         if len(time_r) >  fbN:
             infobool = True
-            print('################################################')
+            print('#################################################')
             print('# {:>6}| {:>7}| {:>10}| {:>12} #'.format('iter','i left','Est. time left','Elapsed time'))
             print('#-------|--------|---------------|--------------#')
         
@@ -284,7 +285,9 @@ def CV_3D(self, *args, **kwargs):
         c_new[:,elec[0],elec[1],elec[2]] = np.where(bc > 0, bc, 0) # prevents that c drops below 0
         c_prev = c_new # overwrite previous value with new value
         if t == Time[counter_t]: # check if the output timestamp is reached, if yes store value
-            c_cache[counter_t] = c_new
+            cnew = c_new.copy()
+            if blockpres: cnew[:,blocked[0],blocked[1],blocked[2]] = 0 # set c equal to zero at the surface of the blocking layer
+            c_cache[counter_t] = cnew
             counter_t += 1  
     #end of the sim
     
@@ -311,21 +314,25 @@ def CV_3D(self, *args, **kwargs):
     
     # remove the elements which are at the edge of the simulation area
     # border : [0] = {0,zsteps-1}, [1] = {0,ysteps-1}, [2] = {0,xsteps-1}
-    edge_x = np.where((elec[2] == 0) | (elec[2] == x_steps-1))
-    edge_y = np.where((elec[1] == 0) | (elec[1] == y_steps-1))
-    edge_z = np.where((elec[0] == 0) | (elec[0] == z_steps-1))
-    edge = np.concatenate((edge_x[0], edge_y[0], edge_z[0]))
+    edge_x, edge_y, edge_z = np.array([]), np.array([]), np.array([])
+    if not wall_electrode_x: edge_x = np.where((elec[2] == 0) | (elec[2] == x_steps-1))[0]
+    if not wall_electrode_y: edge_y = np.where((elec[1] == 0) | (elec[1] == y_steps-1))[0]
+    if not wall_electrode_z: edge_z = np.where((elec[0] == 0) | (elec[0] == z_steps-1))[0]
+    
+    edge = np.concatenate((edge_x, edge_y, edge_z))
     curdens = np.delete(curdens,edge,axis=1)
-   
+    elec, normal = np.delete(elec,edge,axis=1),  np.delete(normal,edge,axis=1)
+    
     if self.feedback: 
         tot_t = time.perf_counter() - t0
         unitstr = 'sec'
         if tot_t > 120:
             unitstr = 'min'
             tot_t /= 60
-        if infobool: print('################################################\n')
+        if infobool: print('#################################################\n')
         print(('Total duration of the simulation: {:.4} '+unitstr).format(tot_t))
     
+    self.el, self.normal = elec, normal
     self.time, self.Eapp, self.curdens = Time, Eapp, curdens
     self.meshA, self.meshB = meshA, meshB
     self.cA, self.cB = c_new[:,0]*1e3, c_new[:,1]*1e3

@@ -27,12 +27,11 @@ def animate(self, *args, **kwargs):
     
     return anim
      
-   
 
 def animate_1D(self, *args, **kwargs):
     '''
     This function shows the animation of the concentraion of A and B over time.
-    This function makes use of the animate() function from GeneralFunctions.
+    This function makes use of the animate() function from genfunc.
     '''
     kwargs['t_an'] = self.time
     kwargs['E_app'] = self.Eapp
@@ -61,20 +60,20 @@ def animate_1D(self, *args, **kwargs):
     
     anim = Animate(x, c, **kwargs)
     return anim
-
    
 
 def animate_2D(self, *args, **kwargs):
     '''
     This function shows the animation of the concentraion of A and B over time.
-    This function makes use of the animate_2D() function from GeneralFunctions.
+    This function makes use of the animate_2D() function from genfunc.
     
     Parameters:
-        see GeneralFunctions.animate_2D()
+        see genfunc.animate_2D()
         
     Additional:
         species: specify which species to animate 'A' or 'B'
         units: specify the units of the x,y and label. (default = ['um','mM'])
+        resolution: specify the resolution of the animation in %. When 100% (default) all pixels are shown
     
     '''
     kwargs['t_an'] = self.time # specify the time steps
@@ -109,8 +108,9 @@ def animate_2D(self, *args, **kwargs):
         c_LQ = c.copy()
         c_LQ = c[:,idx0][:,:,idx1]
         c, mesh = c_LQ, mesh_LQ
-        elec_LQ = np.array(np.round(elec.copy() * resolution/100-0.5)).astype(int) # shrink down the electrode pos
-        elec = np.unique(elec_LQ, axis=1) # remove all the duplicates
+        if elec != []:
+            elec_LQ = np.array(np.round(elec.copy() * resolution/100-0.5)).astype(int) # shrink down the electrode pos
+            elec = np.unique(elec_LQ, axis=1) # remove all the duplicates
 
     f =[]
     # check which spatial units to use
@@ -155,9 +155,9 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
     '''
     This function shows the animation of the concentraion of A and B over time.
     It shows the evolution of the concentration in a cross section of the 3D simulation space.
-    Determine said cross section by specifying the value of ONE coordinate for
+    Determine the cross section by specifying the value of ONE coordinate for
     which the cross section (planar) should be taken.
-    This function makes use of the animate_2D() function from GeneralFunctions.
+    This function makes use of the animate_2D() function from genfunc.
     
     Parameters:
         One of x, y or z to determine the cross section plane. (x=0 for example)
@@ -167,6 +167,7 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
         species: specify which species to animate 'A' or 'B'
         units: specify the units of the x,y and label. (default = ['um','mM'])
         depth unit: unit of the coordinate position of the cross section
+        resolution: specify the resolution of the animation in %. When 100% (default) all pixels are shown
     '''
     if [x,y,z].count('all') != 2:
         raise ValueError('Exactly one coordinate must be specified for the cross section!')
@@ -182,48 +183,60 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
     if 'species' in kwargs: del kwargs['species']
     if 'units' in kwargs: del kwargs['units']
     if 'depth unit' in kwargs: del kwargs['depth unit']
+    resolution = kwargs.get('resolution', 100)
+    if 'resolution' in kwargs: del kwargs['resolution']
     
     # select the c and mesh of the species:
     if species == 'A': # select the mesh and c for species A
-        if x != 'all':
-            yval = self.meshA[1][:,0,0]
-            zval = self.meshA[2][0,0]
-            mesh = np.meshgrid(yval,zval)
-            c = self.cA[:,:,:,x]
-            title_3D_dist = (self.meshA[0][0,1,0]-self.meshA[0][0,0,0])*x
-        elif y != 'all':
-            xval = self.meshA[0][0,:,0]
-            zval = self.meshA[2][0,0]
-            mesh = np.meshgrid(xval,zval)
-            c = self.cA[:,:,y,:]
-            title_3D_dist = (self.meshA[1][1,0,0]-self.meshA[1][0,0,0])*y
-        elif z != 'all':
-            xval = self.meshA[0][0,:,0]
-            yval = self.meshA[1][:,0,0]
-            mesh = np.meshgrid(xval,yval)
-            c = self.cA[:,z,:,:]
-            title_3D_dist = (self.meshA[2][0,0,1]-self.meshA[2][0,0,0])*z
+        mesh, c = self.meshA, self.cA
     elif species == 'B': # select the mesh and c for species B
+        mesh, c = self.meshB, self.cB
+    else: raise ValueError('Choose between species \'A\' or \'B\'!')
+    
+    # create mesh and c in 2D
+    if x != 'all':
+        yval, zval = mesh[1][:,0,0], mesh[2][0,0]
+        title_3D_dist = (mesh[0][0,1,0]-mesh[0][0,0,0])*x
+        mesh, c = np.meshgrid(yval,zval), c[:,:,:,x]
+        titlestr = 'x'
+    elif y != 'all':
+        xval, zval = mesh[0][0,:,0], mesh[2][0,0]
+        title_3D_dist = (mesh[1][1,0,0]-mesh[1][0,0,0])*y
+        mesh, c = np.meshgrid(xval,zval), c[:,:,y,:]
+        titlestr = 'y'
+    elif z != 'all':
+        xval, yval = mesh[0][0,:,0], mesh[1][:,0,0]
+        title_3D_dist = (mesh[2][0,0,1]-mesh[2][0,0,0])*z
+        mesh, c = np.meshgrid(xval,yval), c[:,z,:,:]
+        titlestr = 'z'
+        
+    elec = self.el
+    if 'outline' not in kwargs: # select the outline
         if x != 'all':
-            yval = self.meshB[1][:,0,0]
-            zval = self.meshB[2][0,0]
-            mesh = np.meshgrid(yval,zval)
-            c = self.cB[:,:,:,x]
-            title_3D_dist = (self.meshB[0][0,1,0]-self.meshB[0][0,0,0])*x
+            select_el = elec[2] == x # select the x value
+            elec = np.array((elec[0][select_el], elec[1][select_el]))
         elif y != 'all':
-            xval = self.meshB[0][0,:,0]
-            zval = self.meshB[2][0,0]
-            mesh = np.meshgrid(xval,zval)
-            c = self.cB[:,:,y,:]
-            title_3D_dist = (self.meshB[1][1,0,0]-self.meshB[1][0,0,0])*y
+            select_el = elec[1] == y # select the y value
+            elec = np.array((elec[0][select_el], elec[2][select_el]))
         elif z != 'all':
-            xval = self.meshB[0][0,:,0]
-            yval = self.meshB[1][:,0,0]
-            mesh = np.meshgrid(xval,yval)
-            c = self.cB[:,z,:,:]
-            title_3D_dist = (self.meshB[2][0,0,1]-self.meshB[2][0,0,0])*z
-    else: raise ValueError('Choose between the species \'A\' and \'B\' only!')
-
+            select_el = elec[0] == z # select the z value
+            elec = np.array((elec[1][select_el], elec[2][select_el]))
+        kwargs['outline'] = elec
+    
+    # the mesh can be quite large sometimes, it is not always nessesary to display all pixels
+    if resolution < 100:
+        idx0 = np.round(np.linspace(0, mesh[0].shape[0] - 1, round(resolution/100 * mesh[0].shape[0]))).astype(int) # zeroth dim to shrink
+        idx1 = np.round(np.linspace(0, mesh[0].shape[1] - 1, round(resolution/100 * mesh[0].shape[1]))).astype(int) # first dim to shrink
+        mesh_LQ = mesh.copy()
+        mesh_LQ[0], mesh_LQ[1] = mesh_LQ[0][idx0][:,idx1], mesh_LQ[1][idx0][:,idx1]
+        c_LQ = c.copy()
+        c_LQ = c[:,idx0][:,:,idx1]
+        c, mesh = c_LQ, mesh_LQ
+        if elec != []:
+            elec_LQ = np.array(np.round(elec.copy() * resolution/100-0.5)).astype(int) # shrink down the electrode pos
+            elec = np.unique(elec_LQ, axis=1) # remove all the duplicates
+            kwargs['outline'] = elec
+        
     f =[]
     # check which spatial units to use
     if units[0] == 'um': f.append(1e4)
@@ -245,10 +258,10 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
         yunit = xunit
     coord = [f[0]*mesh[0], f[1]*mesh[1]]
     
-    if depth_unit == 'um': kwargs['title 3D'] = ', {:.3f}'.format(title_3D_dist*1e4)+' um'
-    elif depth_unit == 'mm': kwargs['title 3D'] = ', {:.3f}'.format(title_3D_dist*10)+' mm'
-    elif depth_unit == 'cm': kwargs['title 3D'] = ', {:.3f}'.format(title_3D_dist*1)+' cm'
-    elif depth_unit == 'm': kwargs['title 3D'] = ', {:.3f}'.format(title_3D_dist*1e-2)+' m'
+    if depth_unit == 'um': kwargs['title 3D'] = ', {} = {:.0f}'.format(titlestr, title_3D_dist*1e4)+' um'
+    elif depth_unit == 'mm': kwargs['title 3D'] = ', {} = {:.0f}'.format(titlestr, title_3D_dist*10)+' mm'
+    elif depth_unit == 'cm': kwargs['title 3D'] = ', {} = {:.0f}'.format(titlestr, title_3D_dist*1)+' cm'
+    elif depth_unit == 'm': kwargs['title 3D'] = ', {} = {:.0f}'.format(titlestr, title_3D_dist*1e-2)+' m'
     else: raise ValueError('The depth unit needs to be um, mm, cm or m only!')
     
     # check which units to use for the concentration
@@ -263,48 +276,10 @@ def animate_3D(self, x='all', y='all', z='all', *args, **kwargs):
     if 'maxbar' not in kwargs: kwargs['maxbar'] = round(max(c.flatten()))
     if 'barlabel' not in kwargs: kwargs['barlabel'] = 'Concentration ('+units[-1]+')'
     
-    
-    ##### UPDATE THE OUTLINE 
-    # if 'outline' not in kwargs:
-    #     empty_inv = list(np.delete(range(6),self.empty))
-    #     outline = []
-    #     length = 0
-        
-    #     if x !='all':
-    #         for i,el in enumerate(self.el):
-    #             if empty_inv[i] == 0 or empty_inv[i] == 1: continue
-    #             temp = el[:,el[2]==x]
-    #             pos = temp[(0,1),:]
-    #             outline.append(pos)
-    #             length = length + len(pos.flatten())
-    #         if length==0: print('The specified cross section does not include an electrode surface!')
-    #         else: kwargs['outline'] = outline
-            
-    #     if y !='all':
-    #         for i,el in enumerate(self.el):
-    #             if empty_inv[i] == 2 or empty_inv[i] == 3: continue
-    #             temp = el[:,el[1]==y]
-    #             pos = temp[(0,2),:]
-    #             outline.append(pos)
-    #             length = length + len(pos.flatten())
-    #         if length==0: print('The specified cross section does not include an electrode surface!')
-    #         else:kwargs['outline'] = outline
-            
-    #     if z !='all':
-    #         for i,el in enumerate(self.el):
-    #             if empty_inv[i] == 4 or empty_inv[i] == 5: continue
-    #             temp = el[:,el[0]==z]
-    #             pos = temp[(1,2),:]
-    #             outline.append(pos)
-    #             length = length + len(pos.flatten())
-    #         if length==0: print('The specified cross section does not include an electrode surface!')
-    #         else:kwargs['outline'] = outline
-    
-    
-    if x != 'all' and'label' not in kwargs: kwargs['label'] = ['y ('+xunit+')','z ('+yunit+')']
-    elif y != 'all' and'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','z ('+yunit+')']
-    elif z != 'all' and 'label' not in kwargs: kwargs['label'] = ['x ('+xunit+')','y ('+yunit+')']
-    
+    if 'label' not in kwargs: # set the label
+        if x != 'all': kwargs['label'] = ['y ('+xunit+')','z ('+yunit+')']
+        elif y != 'all': kwargs['label'] = ['x ('+xunit+')','z ('+yunit+')']
+        elif z != 'all': kwargs['label'] = ['x ('+xunit+')','y ('+yunit+')']
     
     # animate!
     anim = Animate_2D(coord, c, **kwargs)

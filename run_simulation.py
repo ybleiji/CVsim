@@ -14,18 +14,13 @@ def run_simulation(self, Dm=0.49, MaxIter=1e5, feedback=True, fb=None, fbN=None,
         Dm: diffusion model coefficient (default 0.49), DO NOT EXCEED 0.5!
         MaxIter: maximum amount of iterations (default 1e6)
         gridtype: choose from linear or nonlinear to use a linear or nonlinear grid type (default linear)
-        
-    Optional arguments for 1D:
-        E_steps: number of steps to devide E into (int) (default = 100)
-        Lx: length of the diffusion profile: x = [0, Lx] (default = 6*sqrt(D*t_sim))
-        x_steps: number of points of the concentration profile in x (default = 300)
-        
-    Optional arguments for 1D:
         E_steps: number of steps to devide E into (int) (default = 100)
         Lx: length of the diffusion profile: x = [0, Lx] (default = 6*sqrt(D*t_sim))
         Ly: length of the electrode: y = [0, Ly] (default = Lx)
+        Lz: length of the electrode: y = [0, Lz] (default = Lx)
         x_steps: number of points of the concentration profile in x (default = 300)
-        y_steps: number of points of the concentration profile in y (default = 300) 
+        y_steps: number of points of the concentration profile in y (default = 100 (2D) or 10 (3D)) 
+        z_steps: number of points of the concentration profile in y (default = 10) 
     '''
     #check if the electrode is specified
     try: temp = self.dim
@@ -93,15 +88,14 @@ def run_simulation(self, Dm=0.49, MaxIter=1e5, feedback=True, fb=None, fbN=None,
     if self.dim == '3D':
         # set gridtype
         if gridtype is None: self.gridtype = 'linear'
-        
         # set the x, y and z steps
-        if'x_steps' not in dir(self):
+        if 'x_steps' not in dir(self) or 'x_steps' in kwargs:
             if self.gridtype == 'linear':
                 self.x_steps = kwargs.get('x_steps', 300) # default amount of x steps is 300
             else: raise NotImplementedError('Nonlinear grid not yet implemented')
-        if 'y_steps' not in dir(self):
+        if 'y_steps' not in dir(self) or 'y_steps' in kwargs:
             self.y_steps = kwargs.get('y_steps', 10) # default amount of y steps is 10
-        if 'z_steps' not in dir(self):
+        if 'z_steps' not in dir(self) or 'z_steps' in kwargs:
             self.z_steps = kwargs.get('z_steps', 10) # default amount of z steps is 10
         
         if self.feedback: print('The 3D simulation is running!')

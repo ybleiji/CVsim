@@ -1,0 +1,15 @@
+update log
+
+
+Updated plot function:
+- fixed tcA, tcB, tc plot option for 2D and 3D
+
+Updated outline 3D
+
+Animation new feature:
+- added resolution option, animate with less resolution to speed to the animation/reduce the number of pixels
+
+Blocking layer:
+- after sim, set surface of blocking layer to 0 (in 2D and 3D)
+- removed elements from elec which are also in blocking layer
+- fixed bug if blocking layer directy ends next to electrode

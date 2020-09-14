@@ -149,7 +149,8 @@ class CV_sim:
     from .animate import animate, animate_1D, animate_2D, animate_3D
     
     # import plot functions
-    from .plot import plot, activity
+    from .plot import plot
+    from .activity import activity
     
     
     def reset(self):
